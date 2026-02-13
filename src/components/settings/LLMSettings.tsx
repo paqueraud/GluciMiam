@@ -276,9 +276,10 @@ export default function LLMSettings({ onClose }: LLMSettingsProps) {
             ) : saving ? (
               'Enregistrement...'
             ) : (
-            <><Save size={16} /> Enregistrer</>
-          )}
-        </button>
+              <><Save size={16} /> Enregistrer</>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
