@@ -94,7 +94,7 @@ export default function UserForm({ existingUser, onSaved, onCancel }: UserFormPr
     };
 
     if (existingUser?.id) {
-      await db.users.update(existingUser.id, userData);
+      await db.users.put(userData);
     } else {
       await db.users.add(userData);
     }

@@ -17,7 +17,6 @@ type Step = 'idle' | 'camera' | 'select-user' | 'analyzing';
 export default function HomePage({ onNavigate }: HomePageProps) {
   const {
     activeSession,
-    currentUser,
     loadActiveSession,
     loadUsers,
     setCurrentUser,

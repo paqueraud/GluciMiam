@@ -9,6 +9,7 @@ import LLMSettings from './components/settings/LLMSettings';
 import ImportExport from './components/settings/ImportExport';
 import { useAppStore } from './stores/appStore';
 import { db } from './db';
+import type { UserProfile } from './types';
 
 type Page = 'home' | 'session' | 'new-user' | 'edit-user' | 'llm-settings' | 'import' | 'export';
 
@@ -82,7 +83,7 @@ function EditUserPage({
   onCancel: () => void;
 }) {
   const { users } = useAppStore();
-  const [user, setUser] = useState<Awaited<ReturnType<typeof db.users.get>> | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
 
   // If we have a user ID, load it
   if (editUserId && !user) {
