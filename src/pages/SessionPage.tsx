@@ -18,17 +18,18 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
 
-  const handleAddPhoto = useCallback(async (photoBase64: string) => {
+  const handleAddPhoto = useCallback(async (photoBase64: string, userContext?: string) => {
     if (!activeSession?.id || !currentUser) return;
     setShowCamera(false);
     setAnalyzing(true);
 
     try {
-      const result = await analyzeFood(photoBase64, currentUser.fingerLengthMm);
+      const result = await analyzeFood(photoBase64, currentUser.fingerLengthMm, userContext);
       await addFoodItem({
         sessionId: activeSession.id,
         photoBase64,
         photoTimestamp: new Date(),
+        userContext,
         detectedFoodName: result.foodName,
         estimatedWeightG: result.estimatedWeightG,
         estimatedCarbsG: result.totalCarbsG,
@@ -40,6 +41,7 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
         sessionId: activeSession.id,
         photoBase64,
         photoTimestamp: new Date(),
+        userContext,
         detectedFoodName: err instanceof Error ? 'Analyse échouée' : 'Erreur',
         estimatedWeightG: 0,
         estimatedCarbsG: 0,

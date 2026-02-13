@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { openCamera, capturePhoto, stopCamera, fileToBase64 } from '../../services/camera';
 
 interface CameraCaptureProps {
-  onCapture: (photoBase64: string) => void;
+  onCapture: (photoBase64: string, context?: string) => void;
   onCancel?: () => void;
 }
 
@@ -15,6 +15,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   const [isStreaming, setIsStreaming] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userContext, setUserContext] = useState('');
 
   const startCamera = useCallback(async () => {
     try {
@@ -48,9 +49,9 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
 
   const handleConfirm = useCallback(() => {
     if (preview) {
-      onCapture(preview);
+      onCapture(preview, userContext.trim() || undefined);
     }
-  }, [preview, onCapture]);
+  }, [preview, userContext, onCapture]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,7 +69,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 16,
+        gap: 12,
         width: '100%',
       }}
     >
@@ -126,7 +127,6 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           </div>
         )}
 
-        {/* Scan line overlay */}
         {isStreaming && (
           <div
             style={{
@@ -140,6 +140,23 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           />
         )}
       </div>
+
+      {/* Context input - shown when photo is taken */}
+      {preview && (
+        <div style={{ width: '100%', maxWidth: 400 }}>
+          <label className="label">Contexte (optionnel)</label>
+          <input
+            className="input"
+            value={userContext}
+            onChange={(e) => setUserContext(e.target.value)}
+            placeholder="Ex: pâtes carbonara, environ 200g, sauce à part..."
+            style={{ fontSize: 13 }}
+          />
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+            Aidez l'IA à mieux identifier le plat
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 12 }}>
         {!isStreaming && !preview && (

@@ -38,6 +38,7 @@ export interface FoodItem {
   sessionId: number;
   photoBase64: string;
   photoTimestamp: Date;
+  userContext?: string; // contexte textuel ajouté par l'utilisateur
   detectedFoodName: string;
   estimatedWeightG: number;
   estimatedCarbsG: number;
@@ -46,15 +47,19 @@ export interface FoodItem {
   confidence?: number;
 }
 
+// ===== Meal Pump Tracking =====
+
 export interface MealSession {
   id?: number;
   userId: number;
   startedAt: Date;
   endedAt?: Date;
   totalCarbsG: number;
+  carbsEnteredInPump: number;
   isActive: boolean;
   notes?: string;
 }
+
 
 // ===== Food Database Types =====
 

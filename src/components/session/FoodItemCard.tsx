@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Pencil, Check, X } from 'lucide-react';
+import { Pencil, Check, X, Trash2 } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 
 export default function FoodItemCard() {
-  const { sessionFoodItems, currentPhotoIndex, updateFoodItem } = useAppStore();
+  const { sessionFoodItems, currentPhotoIndex, updateFoodItem, deleteFoodItem } = useAppStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (sessionFoodItems.length === 0) return null;
 
@@ -27,6 +28,13 @@ export default function FoodItemCard() {
     setIsEditing(false);
   };
 
+  const handleDelete = () => {
+    if (item.id) {
+      deleteFoodItem(item.id);
+      setConfirmDelete(false);
+    }
+  };
+
   return (
     <div
       className="glass"
@@ -36,17 +44,76 @@ export default function FoodItemCard() {
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
+        position: 'relative',
       }}
     >
+      {/* Delete button */}
+      <button
+        onClick={() => setConfirmDelete(true)}
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          background: 'none',
+          border: 'none',
+          color: 'var(--text-muted)',
+          cursor: 'pointer',
+          padding: 4,
+        }}
+      >
+        <Trash2 size={15} />
+      </button>
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(10, 14, 26, 0.95)',
+          borderRadius: 'var(--radius-md)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          zIndex: 10,
+        }}>
+          <p style={{ fontSize: 14, color: 'var(--text-primary)', textAlign: 'center' }}>
+            Supprimer cette entrée ?
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={() => setConfirmDelete(false)} style={{ padding: '8px 16px', fontSize: 13 }}>
+              Annuler
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} style={{ padding: '8px 16px', fontSize: 13 }}>
+              Supprimer
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Food name */}
       <div style={{
         fontSize: 15,
         fontWeight: 600,
         color: 'var(--accent-primary)',
         textAlign: 'center',
+        paddingRight: 24,
       }}>
         {item.detectedFoodName || 'Analyse en cours...'}
       </div>
+
+      {/* User context if any */}
+      {item.userContext && (
+        <div style={{
+          fontSize: 11,
+          color: 'var(--text-muted)',
+          textAlign: 'center',
+          fontStyle: 'italic',
+        }}>
+          Contexte : {item.userContext}
+        </div>
+      )}
 
       {/* Carbs display */}
       <div style={{

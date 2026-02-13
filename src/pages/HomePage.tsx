@@ -28,6 +28,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingContext, setPendingContext] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     loadActiveSession();
@@ -50,8 +51,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     setError(null);
   };
 
-  const handlePhotoCapture = useCallback(async (photoBase64: string) => {
+  const handlePhotoCapture = useCallback(async (photoBase64: string, userContext?: string) => {
     setPendingPhoto(photoBase64);
+    setPendingContext(userContext);
     setStep('analyzing');
     setAnalyzing(true);
 
@@ -73,15 +75,13 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         const user = await identifyUserByHand(handResult.indexFingerLength, img.naturalWidth);
         if (user) {
           setCurrentUser(user);
-          // Start session and go to session page with this photo
           const session = await startSession(user.id!);
-          await processAndAddFoodItem(photoBase64, user.fingerLengthMm, session.id!);
+          await processAndAddFoodItem(photoBase64, user.fingerLengthMm, session.id!, userContext);
           onNavigate('session');
           return;
         }
       }
 
-      // Hand not detected or user not identified - ask to select
       setAnalyzing(false);
       setStep('select-user');
     } catch {
@@ -90,14 +90,15 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     }
   }, [setCurrentUser, startSession, onNavigate]);
 
-  const processAndAddFoodItem = async (photoBase64: string, fingerLengthMm: number, sessionId: number) => {
+  const processAndAddFoodItem = async (photoBase64: string, fingerLengthMm: number, sessionId: number, userContext?: string) => {
     try {
-      const result = await analyzeFood(photoBase64, fingerLengthMm);
+      const result = await analyzeFood(photoBase64, fingerLengthMm, userContext);
       const { addFoodItem } = useAppStore.getState();
       await addFoodItem({
         sessionId,
         photoBase64,
         photoTimestamp: new Date(),
+        userContext,
         detectedFoodName: result.foodName,
         estimatedWeightG: result.estimatedWeightG,
         estimatedCarbsG: result.totalCarbsG,
@@ -105,12 +106,12 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         confidence: result.confidence,
       });
     } catch (err) {
-      // If LLM fails, still add the photo with placeholder data
       const { addFoodItem } = useAppStore.getState();
       await addFoodItem({
         sessionId,
         photoBase64,
         photoTimestamp: new Date(),
+        userContext,
         detectedFoodName: 'Analyse échouée - corrigez manuellement',
         estimatedWeightG: 0,
         estimatedCarbsG: 0,
@@ -128,7 +129,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
       const session = await startSession(userId);
       if (pendingPhoto) {
         setAnalyzing(true);
-        await processAndAddFoodItem(pendingPhoto, user.fingerLengthMm, session.id!);
+        await processAndAddFoodItem(pendingPhoto, user.fingerLengthMm, session.id!, pendingContext);
       }
       onNavigate('session');
     }

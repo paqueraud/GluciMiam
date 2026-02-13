@@ -16,10 +16,17 @@ const PROVIDERS: { id: LLMProvider; name: string; description: string }[] = [
 ];
 
 const GEMINI_MODELS = [
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)', description: 'Le plus récent, rapide et performant' },
-  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Preview)', description: 'Plus puissant, meilleur raisonnement' },
+  { id: 'gemini-3-flash', name: 'Gemini 3 Flash', description: 'Le plus récent, rapide et performant' },
+  { id: 'gemini-3-pro', name: 'Gemini 3 Pro', description: 'Plus puissant, meilleur raisonnement' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Stable, rapide' },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, plus précis' },
+];
+
+const CLAUDE_MODELS = [
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Le plus puissant, raisonnement avancé' },
+  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Excellent rapport performance/coût' },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Rapide et économique' },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Performant, bonne analyse visuelle' },
 ];
 
 export default function LLMSettings({ onClose }: LLMSettingsProps) {
@@ -58,111 +65,144 @@ export default function LLMSettings({ onClose }: LLMSettingsProps) {
     setTimeout(() => onClose(), 1000);
   };
 
+  const modelList = provider === 'gemini' ? GEMINI_MODELS : provider === 'claude' ? CLAUDE_MODELS : null;
+
   return (
-    <div style={{ padding: 16, maxWidth: 500, margin: '0 auto' }}>
-      <h2 style={{
-        fontSize: 20,
-        fontWeight: 700,
-        marginBottom: 20,
-        background: 'var(--accent-gradient)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
+    <div style={{
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }}>
+      {/* Scrollable content */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: 16,
+        paddingBottom: 100,
+        maxWidth: 500,
+        margin: '0 auto',
+        width: '100%',
       }}>
-        Configuration LLM
-      </h2>
+        <h2 style={{
+          fontSize: 20,
+          fontWeight: 700,
+          marginBottom: 20,
+          background: 'var(--accent-gradient)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}>
+          Configuration LLM
+        </h2>
 
-      {/* Provider selection */}
-      <div style={{ marginBottom: 20 }}>
-        <label className="label">Fournisseur IA</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {PROVIDERS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => {
-                setProvider(p.id);
-                setModel(DEFAULT_MODELS[p.id]);
-              }}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                padding: '12px 16px',
-                background: provider === p.id ? 'var(--bg-card-hover)' : 'var(--bg-card)',
-                border: `1px solid ${provider === p.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                borderRadius: 'var(--radius-md)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                color: 'var(--text-primary)',
-                boxShadow: provider === p.id ? 'var(--accent-glow)' : 'none',
-                transition: 'all var(--transition-fast)',
-              }}
-            >
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{p.description}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* API Key */}
-      <div style={{ marginBottom: 16 }}>
-        <label className="label">Clé API</label>
-        <input
-          className="input"
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={`Entrez votre clé API ${PROVIDERS.find((p) => p.id === provider)?.name || ''}...`}
-        />
-      </div>
-
-      {/* Gemini model selector */}
-      {provider === 'gemini' && (
-        <div style={{ marginBottom: 16 }}>
-          <label className="label">Modèle Gemini</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {GEMINI_MODELS.map((m) => (
+        {/* Provider selection */}
+        <div style={{ marginBottom: 20 }}>
+          <label className="label">Fournisseur IA</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {PROVIDERS.map((p) => (
               <button
-                key={m.id}
-                onClick={() => setModel(m.id)}
+                key={p.id}
+                onClick={() => {
+                  setProvider(p.id);
+                  setModel(
+                    p.id === 'gemini' ? GEMINI_MODELS[0].id
+                    : p.id === 'claude' ? CLAUDE_MODELS[0].id
+                    : DEFAULT_MODELS[p.id]
+                  );
+                }}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  padding: '10px 14px',
-                  background: model === m.id ? 'var(--bg-card-hover)' : 'var(--bg-secondary)',
-                  border: `1px solid ${model === m.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                  borderRadius: 'var(--radius-sm)',
+                  padding: '12px 16px',
+                  background: provider === p.id ? 'var(--bg-card-hover)' : 'var(--bg-card)',
+                  border: `1px solid ${provider === p.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                  borderRadius: 'var(--radius-md)',
                   cursor: 'pointer',
                   textAlign: 'left',
                   color: 'var(--text-primary)',
+                  boxShadow: provider === p.id ? 'var(--accent-glow)' : 'none',
                   transition: 'all var(--transition-fast)',
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{m.name}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{m.description}</div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{p.description}</div>
               </button>
             ))}
           </div>
         </div>
-      )}
 
-      {/* Model override (other providers) */}
-      {provider !== 'gemini' && (
-        <div style={{ marginBottom: 24 }}>
-          <label className="label">Modèle (optionnel)</label>
+        {/* API Key */}
+        <div style={{ marginBottom: 16 }}>
+          <label className="label">Clé API</label>
           <input
             className="input"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder={DEFAULT_MODELS[provider]}
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={`Entrez votre clé API ${PROVIDERS.find((p) => p.id === provider)?.name || ''}...`}
           />
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            Laissez vide pour utiliser le modèle par défaut
-          </div>
         </div>
-      )}
 
-      {/* Buttons */}
-      <div style={{ display: 'flex', gap: 12 }}>
+        {/* Model selector for Claude & Gemini */}
+        {modelList && (
+          <div style={{ marginBottom: 16 }}>
+            <label className="label">Modèle</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {modelList.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setModel(m.id)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '10px 14px',
+                    background: model === m.id ? 'var(--bg-card-hover)' : 'var(--bg-secondary)',
+                    border: `1px solid ${model === m.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    color: 'var(--text-primary)',
+                    transition: 'all var(--transition-fast)',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{m.name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{m.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Model override (other providers) */}
+        {!modelList && (
+          <div style={{ marginBottom: 24 }}>
+            <label className="label">Modèle (optionnel)</label>
+            <input
+              className="input"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={DEFAULT_MODELS[provider]}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              Laissez vide pour utiliser le modèle par défaut
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Fixed bottom buttons */}
+      <div style={{
+        position: 'sticky',
+        bottom: 0,
+        padding: '12px 16px',
+        background: 'var(--bg-primary)',
+        borderTop: '1px solid var(--border-color)',
+        display: 'flex',
+        gap: 12,
+        maxWidth: 500,
+        margin: '0 auto',
+        width: '100%',
+      }}>
         <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>
           Annuler
         </button>

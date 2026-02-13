@@ -9,19 +9,23 @@ const PROVIDER_URLS: Record<LLMProvider, string> = {
 };
 
 const DEFAULT_MODELS: Record<LLMProvider, string> = {
-  claude: 'claude-sonnet-4-5-20250929',
+  claude: 'claude-opus-4-6',
   chatgpt: 'gpt-4o',
-  gemini: 'gemini-3-flash-preview',
+  gemini: 'gemini-3-flash',
   perplexity: 'sonar-pro',
 };
 
-function buildPrompt(fingerLengthMm: number): string {
+function buildPrompt(fingerLengthMm: number, userContext?: string): string {
+  const contextLine = userContext
+    ? `\n\nL'utilisateur a ajouté ce contexte pour t'aider : "${userContext}"\n`
+    : '';
+
   return `Tu es un expert en nutrition et en comptage des glucides pour les diabétiques insulino-dépendants.
 
 Analyse cette photo d'un plat/collation. Sur la photo, tu verras un doigt (index) qui sert d'étalon de mesure.
 La longueur réelle de cet index est de ${fingerLengthMm}mm.
 
-Utilise cet étalon pour estimer les dimensions et volumes des aliments visibles.
+Utilise cet étalon pour estimer les dimensions et volumes des aliments visibles.${contextLine}
 
 Réponds UNIQUEMENT en JSON valide avec ce format exact :
 {
@@ -182,14 +186,15 @@ function parseResponse(text: string): LLMAnalysisResult | { error: string; needs
 
 export async function analyzeFood(
   imageBase64: string,
-  fingerLengthMm: number
+  fingerLengthMm: number,
+  userContext?: string
 ): Promise<LLMAnalysisResult> {
   const config = await db.llmConfigs.where('isActive').equals(1).first();
   if (!config) {
     throw new Error('Aucun LLM configuré. Configurez un LLM dans le menu.');
   }
 
-  const prompt = buildPrompt(fingerLengthMm);
+  const prompt = buildPrompt(fingerLengthMm, userContext);
 
   let responseText: string;
   switch (config.provider) {
