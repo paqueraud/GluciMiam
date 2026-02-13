@@ -17,21 +17,13 @@ const DEFAULT_MODELS: Record<LLMProvider, string> = {
 
 function buildPrompt(fingerLengthMm: number, userContext?: string): string {
   const contextLine = userContext
-    ? `\n\nL'utilisateur a ajouté ce contexte pour t'aider : "${userContext}"\n`
+    ? `\nContexte: "${userContext}"\n`
     : '';
 
-  return `Tu es un expert en nutrition et en comptage des glucides pour les diabétiques insulino-dépendants.
-
-Analyse cette photo d'un plat/collation. Sur la photo, tu verras un doigt (index) qui sert d'étalon de mesure.
-La longueur réelle de cet index est de ${fingerLengthMm}mm.
-
-Utilise cet étalon pour estimer les dimensions et volumes des aliments visibles.${contextLine}
-
-Réponds UNIQUEMENT en JSON valide avec ce format exact (pas de texte avant ou après, pas de markdown) :
-{"foodName": "nom du plat/aliment en français", "estimatedWeightG": nombre_en_grammes, "carbsPer100g": glucides_pour_100g, "totalCarbsG": total_glucides_en_grammes, "confidence": nombre_entre_0_et_1, "reasoning": "explication courte de ton estimation"}
-
-Si tu ne peux pas identifier l'aliment ou si la photo est floue/insuffisante, réponds :
-{"error": "description du problème", "needsRetake": true}`;
+  return `Expert nutrition diabète. Analyse photo plat. Index visible = ${fingerLengthMm}mm comme étalon.${contextLine}
+Réponds UNIQUEMENT en JSON:
+{"foodName":"nom","estimatedWeightG":0,"carbsPer100g":0,"totalCarbsG":0,"confidence":0.0,"reasoning":"court"}
+Si impossible: {"error":"raison","needsRetake":true}`;
 }
 
 async function callClaude(config: LLMConfig, imageBase64: string, prompt: string): Promise<string> {
@@ -131,7 +123,8 @@ async function callGemini(config: LLMConfig, imageBase64: string, prompt: string
       ],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 4096,
+        responseMimeType: 'application/json',
       },
     }),
   });
@@ -144,10 +137,23 @@ async function callGemini(config: LLMConfig, imageBase64: string, prompt: string
   const data = await response.json();
 
   if (!data.candidates || data.candidates.length === 0) {
-    throw new Error('Gemini: aucune réponse générée. Vérifiez votre clé API et le modèle choisi.');
+    const blockReason = data.promptFeedback?.blockReason;
+    throw new Error(`Gemini: aucune réponse générée.${blockReason ? ` Raison: ${blockReason}` : ''} Vérifiez votre clé API et le modèle choisi.`);
   }
 
-  return data.candidates[0].content.parts[0].text;
+  const candidate = data.candidates[0];
+
+  // Check finish reason for truncation
+  if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'END_TURN') {
+    console.warn(`Gemini finishReason: ${candidate.finishReason}`);
+  }
+
+  // Concatenate ALL parts from the response
+  const fullText = candidate.content.parts
+    .map((p: { text?: string }) => p.text || '')
+    .join('');
+
+  return fullText;
 }
 
 async function callPerplexity(config: LLMConfig, _imageBase64: string, prompt: string): Promise<string> {
@@ -201,27 +207,73 @@ function extractJSON(text: string): string {
     }
   }
 
-  // If braces aren't balanced, try to fix by closing
+  // JSON is truncated - try multiple repair strategies
   const partial = text.substring(start);
-  // Try adding missing closing brace
-  try {
-    return JSON.stringify(JSON.parse(partial + '}'));
-  } catch {
-    // Try adding missing quote + brace
+
+  // Strategy 1-4: try various closings
+  const closings = ['}', '"}', '0}', '0.5}', '""}'];
+  for (const closing of closings) {
     try {
-      return JSON.stringify(JSON.parse(partial + '"}'));
-    } catch {
-      throw new Error(`JSON incomplet dans la réponse: ${partial.substring(0, 300)}`);
-    }
+      const repaired = partial + closing;
+      JSON.parse(repaired);
+      return repaired;
+    } catch { /* continue */ }
   }
+
+  // Strategy 5: extract fields individually from truncated JSON
+  return partial;
+}
+
+function extractFieldString(text: string, key: string): string | undefined {
+  const regex = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'i');
+  const match = text.match(regex);
+  return match?.[1];
+}
+
+function extractFieldNumber(text: string, key: string): number | undefined {
+  const regex = new RegExp(`"${key}"\\s*:\\s*([\\d.]+)`, 'i');
+  const match = text.match(regex);
+  return match ? parseFloat(match[1]) : undefined;
+}
+
+function repairTruncatedJSON(text: string): LLMAnalysisResult | null {
+  const foodName = extractFieldString(text, 'foodName');
+  const estimatedWeightG = extractFieldNumber(text, 'estimatedWeightG');
+  const carbsPer100g = extractFieldNumber(text, 'carbsPer100g');
+  const totalCarbsG = extractFieldNumber(text, 'totalCarbsG');
+  const confidence = extractFieldNumber(text, 'confidence');
+  const reasoning = extractFieldString(text, 'reasoning');
+
+  // We need at minimum foodName to consider it valid
+  if (!foodName) return null;
+
+  // Calculate totalCarbsG from parts if missing
+  const computedTotal = totalCarbsG ??
+    (estimatedWeightG && carbsPer100g ? Math.round((estimatedWeightG * carbsPer100g / 100) * 10) / 10 : undefined);
+
+  if (computedTotal === undefined) return null;
+
+  return {
+    foodName,
+    estimatedWeightG: estimatedWeightG ?? 0,
+    carbsPer100g: carbsPer100g ?? 0,
+    totalCarbsG: computedTotal,
+    confidence: confidence ?? 0.5,
+    reasoning: reasoning ?? 'Réponse reconstruite depuis une réponse LLM tronquée',
+  };
 }
 
 function parseResponse(text: string): LLMAnalysisResult | { error: string; needsRetake: boolean } {
   const jsonStr = extractJSON(text);
+
+  // Try direct parse first
   try {
     return JSON.parse(jsonStr);
   } catch {
-    throw new Error(`JSON invalide: ${jsonStr.substring(0, 300)}`);
+    // JSON is invalid/truncated - try field-by-field repair
+    const repaired = repairTruncatedJSON(jsonStr);
+    if (repaired) return repaired;
+    throw new Error(`JSON incomplet: ${jsonStr.substring(0, 200)}... Réessayez.`);
   }
 }
 
