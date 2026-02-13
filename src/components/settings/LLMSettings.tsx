@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Save, CheckCircle } from 'lucide-react';
+import { Save, CheckCircle, Wifi, WifiOff, Loader } from 'lucide-react';
 import type { LLMProvider, LLMConfig } from '../../types';
-import { saveLLMConfig, getActiveLLMConfig, DEFAULT_MODELS } from '../../services/llm';
+import { saveLLMConfig, getActiveLLMConfig, DEFAULT_MODELS, testLLMConnection } from '../../services/llm';
 import { useAppStore } from '../../stores/appStore';
 
 interface LLMSettingsProps {
@@ -16,10 +16,9 @@ const PROVIDERS: { id: LLMProvider; name: string; description: string }[] = [
 ];
 
 const GEMINI_MODELS = [
-  { id: 'gemini-3-flash', name: 'Gemini 3 Flash', description: 'Le plus récent, rapide et performant' },
-  { id: 'gemini-3-pro', name: 'Gemini 3 Pro', description: 'Plus puissant, meilleur raisonnement' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Stable, rapide' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, plus précis' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Recommandé - Stable, rapide, vision' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Plus précis, meilleur raisonnement' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Version précédente, très stable' },
 ];
 
 const CLAUDE_MODELS = [
@@ -35,6 +34,8 @@ export default function LLMSettings({ onClose }: LLMSettingsProps) {
   const [model, setModel] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const { loadActiveLLMConfig } = useAppStore();
 
   useEffect(() => {
@@ -62,7 +63,30 @@ export default function LLMSettings({ onClose }: LLMSettingsProps) {
     await loadActiveLLMConfig();
     setSaving(false);
     setSaved(true);
-    setTimeout(() => onClose(), 1000);
+    setTimeout(() => onClose(), 1500);
+  };
+
+  const handleTest = async () => {
+    if (!apiKey.trim()) {
+      setTestResult({ success: false, message: 'Entrez une clé API d\'abord' });
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+
+    // Save config first so test uses it
+    const config: Omit<LLMConfig, 'id'> = {
+      provider,
+      apiKey: apiKey.trim(),
+      model: model.trim() || DEFAULT_MODELS[provider],
+      isActive: true,
+    };
+    await saveLLMConfig(config);
+    await loadActiveLLMConfig();
+
+    const result = await testLLMConnection();
+    setTestResult({ success: result.success, message: `[${result.provider}/${result.model}] ${result.message}` });
+    setTesting(false);
   };
 
   const modelList = provider === 'gemini' ? GEMINI_MODELS : provider === 'claude' ? CLAUDE_MODELS : null;
@@ -198,25 +222,60 @@ export default function LLMSettings({ onClose }: LLMSettingsProps) {
         background: 'var(--bg-primary)',
         borderTop: '1px solid var(--border-color)',
         display: 'flex',
-        gap: 12,
+        flexDirection: 'column',
+        gap: 10,
         maxWidth: 500,
         margin: '0 auto',
         width: '100%',
       }}>
-        <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>
-          Annuler
-        </button>
+        {/* Test result */}
+        {testResult && (
+          <div style={{
+            padding: '10px 14px',
+            borderRadius: 'var(--radius-sm)',
+            background: testResult.success ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+            border: `1px solid ${testResult.success ? 'var(--success)' : 'var(--danger)'}`,
+            fontSize: 12,
+            color: testResult.success ? 'var(--success)' : 'var(--danger)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 8,
+            wordBreak: 'break-word',
+          }}>
+            {testResult.success ? <Wifi size={14} style={{ flexShrink: 0, marginTop: 1 }} /> : <WifiOff size={14} style={{ flexShrink: 0, marginTop: 1 }} />}
+            {testResult.message}
+          </div>
+        )}
+
+        {/* Test button */}
         <button
-          className="btn btn-primary"
-          onClick={handleSave}
-          disabled={saving || !apiKey.trim()}
-          style={{ flex: 1 }}
+          className="btn btn-secondary"
+          onClick={handleTest}
+          disabled={testing || !apiKey.trim()}
+          style={{ width: '100%', gap: 8 }}
         >
-          {saved ? (
-            <><CheckCircle size={16} /> Sauvegardé !</>
-          ) : saving ? (
-            'Enregistrement...'
+          {testing ? (
+            <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Test en cours...</>
           ) : (
+            <><Wifi size={14} /> Tester la connexion</>
+          )}
+        </button>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>
+            Annuler
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={saving || !apiKey.trim()}
+            style={{ flex: 1 }}
+          >
+            {saved ? (
+              <><CheckCircle size={16} /> Sauvegardé !</>
+            ) : saving ? (
+              'Enregistrement...'
+            ) : (
             <><Save size={16} /> Enregistrer</>
           )}
         </button>

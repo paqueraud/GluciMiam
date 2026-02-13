@@ -17,11 +17,13 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
   const [showCamera, setShowCamera] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [llmError, setLlmError] = useState<string | null>(null);
 
   const handleAddPhoto = useCallback(async (photoBase64: string, userContext?: string) => {
     if (!activeSession?.id || !currentUser) return;
     setShowCamera(false);
     setAnalyzing(true);
+    setLlmError(null);
 
     try {
       const result = await analyzeFood(photoBase64, currentUser.fingerLengthMm, userContext);
@@ -37,15 +39,17 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
         confidence: result.confidence,
       });
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Erreur inconnue';
+      setLlmError(errorMsg);
       await addFoodItem({
         sessionId: activeSession.id,
         photoBase64,
         photoTimestamp: new Date(),
         userContext,
-        detectedFoodName: err instanceof Error ? 'Analyse échouée' : 'Erreur',
+        detectedFoodName: 'Analyse échouée',
         estimatedWeightG: 0,
         estimatedCarbsG: 0,
-        llmResponse: err instanceof Error ? err.message : 'Erreur',
+        llmResponse: errorMsg,
         confidence: 0,
       });
     }
@@ -175,6 +179,28 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
               <Loader size={16} color="var(--accent-primary)" />
             </motion.div>
             <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Analyse en cours...</span>
+          </div>
+        )}
+
+        {llmError && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(239,68,68,0.1)',
+              border: '1px solid var(--danger)',
+              fontSize: 12,
+              color: 'var(--danger)',
+              wordBreak: 'break-word',
+            }}
+          >
+            <strong>Erreur LLM :</strong> {llmError}
+            <button
+              onClick={() => setLlmError(null)}
+              style={{ float: 'right', background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}
+            >
+              x
+            </button>
           </div>
         )}
       </div>
