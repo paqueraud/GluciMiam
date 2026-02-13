@@ -25,6 +25,7 @@ interface AppStore {
   deleteFoodItem: (id: number) => Promise<void>;
   refreshSessionItems: () => Promise<void>;
   setCurrentPhotoIndex: (index: number) => void;
+  deleteUser: (id: number) => Promise<void>;
   loadActiveLLMConfig: () => Promise<void>;
   getTotalCarbs: () => number;
   updateCarbsEnteredInPump: (value: number) => Promise<void>;
@@ -154,6 +155,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setCurrentPhotoIndex: (index) => set({ currentPhotoIndex: index }),
+
+  deleteUser: async (id) => {
+    await db.users.delete(id);
+    const { currentUser, users } = get();
+    set({
+      users: users.filter((u) => u.id !== id),
+      currentUser: currentUser?.id === id ? null : currentUser,
+    });
+  },
 
   loadActiveLLMConfig: async () => {
     const config = await db.llmConfigs.where('isActive').equals(1).first();

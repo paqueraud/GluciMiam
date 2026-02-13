@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../stores/appStore';
@@ -16,7 +16,6 @@ type Step = 'idle' | 'camera' | 'select-user' | 'analyzing';
 
 export default function HomePage({ onNavigate }: HomePageProps) {
   const {
-    activeSession,
     loadActiveSession,
     loadUsers,
     setCurrentUser,
@@ -29,22 +28,22 @@ export default function HomePage({ onNavigate }: HomePageProps) {
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingContext, setPendingContext] = useState<string | undefined>(undefined);
+  const isCreatingSession = useRef(false);
 
   useEffect(() => {
-    loadActiveSession();
+    // Only redirect on initial load if there's an existing active session
+    loadActiveSession().then(() => {
+      const session = useAppStore.getState().activeSession;
+      if (session && !isCreatingSession.current) {
+        onNavigate('session');
+      }
+    });
     loadUsers();
     loadActiveLLMConfig();
     initHandDetection().catch(() => {
       // MediaPipe may fail to load on some devices, that's ok
     });
-  }, [loadActiveSession, loadUsers, loadActiveLLMConfig]);
-
-  // If there's an active session, redirect to session page
-  useEffect(() => {
-    if (activeSession) {
-      onNavigate('session');
-    }
-  }, [activeSession, onNavigate]);
+  }, [loadActiveSession, loadUsers, loadActiveLLMConfig, onNavigate]);
 
   const handleNewSession = () => {
     setStep('camera');
@@ -75,8 +74,10 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         const user = await identifyUserByHand(handResult.indexFingerLength, img.naturalWidth);
         if (user) {
           setCurrentUser(user);
+          isCreatingSession.current = true;
           const session = await startSession(user.id!);
           await processAndAddFoodItem(photoBase64, user.fingerLengthMm, session.id!, userContext);
+          isCreatingSession.current = false;
           onNavigate('session');
           return;
         }
@@ -85,6 +86,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
       setAnalyzing(false);
       setStep('select-user');
     } catch {
+      isCreatingSession.current = false;
       setAnalyzing(false);
       setStep('select-user');
     }
@@ -126,11 +128,13 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     const user = await db.users.get(userId);
     if (user) {
       setCurrentUser(user);
+      isCreatingSession.current = true;
       const session = await startSession(userId);
       if (pendingPhoto) {
         setAnalyzing(true);
         await processAndAddFoodItem(pendingPhoto, user.fingerLengthMm, session.id!, pendingContext);
       }
+      isCreatingSession.current = false;
       onNavigate('session');
     }
   };

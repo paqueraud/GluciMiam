@@ -17,12 +17,13 @@ const DEFAULT_MODELS: Record<LLMProvider, string> = {
 
 function buildPrompt(fingerLengthMm: number, userContext?: string): string {
   const contextLine = userContext
-    ? `\nContexte: "${userContext}"\n`
+    ? `\nIMPORTANT - L'utilisateur a identifié ce plat comme : "${userContext}". Utilise cette information pour identifier l'aliment et calculer ses glucides.\n`
     : '';
 
-  return `Expert nutrition diabète. Analyse photo plat. Index visible = ${fingerLengthMm}mm comme étalon.${contextLine}
-Réponds UNIQUEMENT en JSON:
-{"foodName":"nom","estimatedWeightG":0,"carbsPer100g":0,"totalCarbsG":0,"confidence":0.0,"reasoning":"court"}
+  return `Tu es un expert en nutrition pour diabétiques. Analyse cette photo de plat/aliment.
+Un index de ${fingerLengthMm}mm est visible comme étalon de taille.${contextLine}
+Réponds UNIQUEMENT en JSON valide:
+{"foodName":"nom en français","estimatedWeightG":poids_grammes,"carbsPer100g":glucides_pour_100g,"totalCarbsG":total_glucides,"confidence":0.0_a_1.0,"reasoning":"explication courte"}
 Si impossible: {"error":"raison","needsRetake":true}`;
 }
 
