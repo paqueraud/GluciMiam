@@ -103,7 +103,7 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
               {sessionFoodItems.length > 0 ? (
                 <>
                   <PhotoViewer />
-                  <FoodItemCard />
+                  <FoodItemCard onError={(msg) => setLlmError(msg)} />
                 </>
               ) : (
                 <div

@@ -175,16 +175,53 @@ async function callPerplexity(config: LLMConfig, _imageBase64: string, prompt: s
   return data.choices[0].message.content;
 }
 
-function parseResponse(text: string): LLMAnalysisResult | { error: string; needsRetake: boolean } {
-  // Extract JSON from response (handle markdown code blocks)
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*?\})/);
-  if (!jsonMatch) {
-    throw new Error(`Impossible de parser la réponse du LLM: ${text.substring(0, 200)}`);
+function extractJSON(text: string): string {
+  // Try markdown code block first
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlock) return codeBlock[1].trim();
+
+  // Find JSON by matching balanced braces
+  const start = text.indexOf('{');
+  if (start === -1) throw new Error(`Pas de JSON trouvé dans: ${text.substring(0, 300)}`);
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.substring(start, i + 1);
+    }
   }
+
+  // If braces aren't balanced, try to fix by closing
+  const partial = text.substring(start);
+  // Try adding missing closing brace
   try {
-    return JSON.parse(jsonMatch[1].trim());
+    return JSON.stringify(JSON.parse(partial + '}'));
   } catch {
-    throw new Error(`JSON invalide dans la réponse LLM: ${jsonMatch[1].substring(0, 200)}`);
+    // Try adding missing quote + brace
+    try {
+      return JSON.stringify(JSON.parse(partial + '"}'));
+    } catch {
+      throw new Error(`JSON incomplet dans la réponse: ${partial.substring(0, 300)}`);
+    }
+  }
+}
+
+function parseResponse(text: string): LLMAnalysisResult | { error: string; needsRetake: boolean } {
+  const jsonStr = extractJSON(text);
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    throw new Error(`JSON invalide: ${jsonStr.substring(0, 300)}`);
   }
 }
 

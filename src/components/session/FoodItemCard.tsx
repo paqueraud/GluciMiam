@@ -1,12 +1,18 @@
 import { useState } from 'react';
-import { Pencil, Check, X, Trash2 } from 'lucide-react';
+import { Pencil, Check, X, Trash2, RefreshCw, Loader } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
+import { analyzeFood } from '../../services/llm';
 
-export default function FoodItemCard() {
-  const { sessionFoodItems, currentPhotoIndex, updateFoodItem, deleteFoodItem } = useAppStore();
+interface FoodItemCardProps {
+  onError?: (msg: string) => void;
+}
+
+export default function FoodItemCard({ onError }: FoodItemCardProps) {
+  const { sessionFoodItems, currentPhotoIndex, updateFoodItem, deleteFoodItem, currentUser } = useAppStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   if (sessionFoodItems.length === 0) return null;
 
@@ -14,6 +20,7 @@ export default function FoodItemCard() {
   if (!item) return null;
 
   const carbsToShow = item.correctedCarbsG ?? item.estimatedCarbsG;
+  const isFailed = item.confidence === 0 && item.estimatedCarbsG === 0;
 
   const startEdit = () => {
     setEditValue(String(carbsToShow));
@@ -33,6 +40,24 @@ export default function FoodItemCard() {
       deleteFoodItem(item.id);
       setConfirmDelete(false);
     }
+  };
+
+  const handleRetry = async () => {
+    if (!item.id || !currentUser) return;
+    setRetrying(true);
+    try {
+      const result = await analyzeFood(item.photoBase64, currentUser.fingerLengthMm, item.userContext);
+      await updateFoodItem(item.id, {
+        detectedFoodName: result.foodName,
+        estimatedWeightG: result.estimatedWeightG,
+        estimatedCarbsG: result.totalCarbsG,
+        llmResponse: result.reasoning,
+        confidence: result.confidence,
+      });
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Erreur inconnue');
+    }
+    setRetrying(false);
   };
 
   return (
@@ -96,7 +121,7 @@ export default function FoodItemCard() {
       <div style={{
         fontSize: 15,
         fontWeight: 600,
-        color: 'var(--accent-primary)',
+        color: isFailed ? 'var(--danger)' : 'var(--accent-primary)',
         textAlign: 'center',
         paddingRight: 24,
       }}>
@@ -113,6 +138,22 @@ export default function FoodItemCard() {
         }}>
           Contexte : {item.userContext}
         </div>
+      )}
+
+      {/* Retry button for failed analyses */}
+      {isFailed && (
+        <button
+          className="btn btn-primary"
+          onClick={handleRetry}
+          disabled={retrying}
+          style={{ margin: '4px auto', padding: '8px 20px', fontSize: 13, gap: 8 }}
+        >
+          {retrying ? (
+            <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Analyse en cours...</>
+          ) : (
+            <><RefreshCw size={14} /> Relancer l'analyse</>
+          )}
+        </button>
       )}
 
       {/* Carbs display */}

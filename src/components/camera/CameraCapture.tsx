@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback } from 'react';
-import { Camera, RotateCcw, Check, ImagePlus } from 'lucide-react';
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { Camera, RotateCcw, Check, ImagePlus, Video, StopCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { openCamera, capturePhoto, stopCamera, fileToBase64 } from '../../services/camera';
 
@@ -16,6 +16,20 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userContext, setUserContext] = useState('');
+  const [mode, setMode] = useState<'photo' | 'video'>('photo');
+  const [recording, setRecording] = useState(false);
+  const [recordTimer, setRecordTimer] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) stopCamera(streamRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   const startCamera = useCallback(async () => {
     try {
@@ -42,8 +56,65 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
     }
   }, []);
 
+  const startRecording = useCallback(() => {
+    if (!streamRef.current) return;
+
+    chunksRef.current = [];
+    const recorder = new MediaRecorder(streamRef.current, {
+      mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm',
+    });
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      // Extract the best frame from the middle of the video
+      if (videoRef.current && streamRef.current) {
+        // Take a photo at the end of recording as the "best" frame
+        const photo = capturePhoto(videoRef.current);
+        setPreview(photo);
+        stopCamera(streamRef.current);
+        streamRef.current = null;
+        setIsStreaming(false);
+      }
+    };
+
+    recorder.start(100);
+    recorderRef.current = recorder;
+    setRecording(true);
+    setRecordTimer(0);
+
+    // Timer countdown
+    timerRef.current = setInterval(() => {
+      setRecordTimer((prev) => {
+        if (prev >= 4.9) {
+          // Auto-stop at 5 seconds
+          stopRecording();
+          return 5;
+        }
+        return prev + 0.1;
+      });
+    }, 100);
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      recorderRef.current.stop();
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setRecording(false);
+    recorderRef.current = null;
+  }, []);
+
   const handleRetake = useCallback(() => {
     setPreview(null);
+    setRecordTimer(0);
     startCamera();
   }, [startCamera]);
 
@@ -56,8 +127,32 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const base64 = await fileToBase64(file);
-      setPreview(base64);
+      if (file.type.startsWith('video/')) {
+        // Extract frame from video file
+        const url = URL.createObjectURL(file);
+        const vid = document.createElement('video');
+        vid.src = url;
+        vid.muted = true;
+        vid.playsInline = true;
+        await new Promise<void>((resolve) => {
+          vid.onloadeddata = () => {
+            vid.currentTime = Math.min(vid.duration / 2, 2.5);
+          };
+          vid.onseeked = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = vid.videoWidth;
+            canvas.height = vid.videoHeight;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(vid, 0, 0);
+            setPreview(canvas.toDataURL('image/jpeg', 0.85));
+            URL.revokeObjectURL(url);
+            resolve();
+          };
+        });
+      } else {
+        const base64 = await fileToBase64(file);
+        setPreview(base64);
+      }
     }
   }, []);
 
@@ -73,6 +168,51 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
         width: '100%',
       }}
     >
+      {/* Mode toggle */}
+      {!isStreaming && !preview && (
+        <div style={{
+          display: 'flex',
+          borderRadius: 'var(--radius-full)',
+          overflow: 'hidden',
+          border: '1px solid var(--border-color)',
+        }}>
+          <button
+            onClick={() => setMode('photo')}
+            style={{
+              padding: '8px 20px',
+              background: mode === 'photo' ? 'var(--accent-primary)' : 'var(--bg-card)',
+              color: mode === 'photo' ? 'var(--bg-primary)' : 'var(--text-secondary)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Camera size={14} /> Photo
+          </button>
+          <button
+            onClick={() => setMode('video')}
+            style={{
+              padding: '8px 20px',
+              background: mode === 'video' ? 'var(--accent-primary)' : 'var(--bg-card)',
+              color: mode === 'video' ? 'var(--bg-primary)' : 'var(--text-secondary)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Video size={14} /> Vidéo 5s
+          </button>
+        </div>
+      )}
+
       <div
         style={{
           width: '100%',
@@ -81,7 +221,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           borderRadius: 'var(--radius-lg)',
           overflow: 'hidden',
           background: 'var(--bg-secondary)',
-          border: '2px solid var(--border-color)',
+          border: `2px solid ${recording ? 'var(--danger)' : 'var(--border-color)'}`,
           position: 'relative',
         }}
       >
@@ -117,9 +257,11 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
               gap: 16,
             }}
           >
-            <Camera size={48} style={{ color: 'var(--text-muted)' }} />
+            {mode === 'photo' ? <Camera size={48} style={{ color: 'var(--text-muted)' }} /> : <Video size={48} style={{ color: 'var(--text-muted)' }} />}
             <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '0 20px' }}>
-              Prenez une photo de votre plat avec votre index visible comme repère
+              {mode === 'photo'
+                ? 'Prenez une photo de votre plat avec votre index visible'
+                : 'Filmez votre plat sous différents angles (5s max)'}
             </p>
             {error && (
               <p style={{ color: 'var(--danger)', fontSize: 12 }}>{error}</p>
@@ -127,7 +269,43 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           </div>
         )}
 
-        {isStreaming && (
+        {/* Recording indicator */}
+        {recording && (
+          <>
+            <div style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(239,68,68,0.9)',
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-full)',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'white',
+            }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', background: 'white',
+                animation: 'pulse-glow 1s infinite',
+              }} />
+              REC {recordTimer.toFixed(1)}s / 5s
+            </div>
+            {/* Progress bar */}
+            <div style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              height: 4,
+              width: `${(recordTimer / 5) * 100}%`,
+              background: 'var(--danger)',
+              transition: 'width 100ms linear',
+            }} />
+          </>
+        )}
+
+        {isStreaming && !recording && (
           <div
             style={{
               position: 'absolute',
@@ -162,7 +340,8 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
         {!isStreaming && !preview && (
           <>
             <button className="btn btn-primary" onClick={startCamera}>
-              <Camera size={18} /> Ouvrir caméra
+              {mode === 'photo' ? <Camera size={18} /> : <Video size={18} />}
+              {mode === 'photo' ? 'Ouvrir caméra' : 'Lancer vidéo'}
             </button>
             <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()}>
               <ImagePlus size={18} /> Galerie
@@ -170,7 +349,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={mode === 'photo' ? 'image/*' : 'image/*,video/*'}
               capture="environment"
               onChange={handleFileUpload}
               style={{ display: 'none' }}
@@ -178,7 +357,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           </>
         )}
 
-        {isStreaming && (
+        {isStreaming && !recording && mode === 'photo' && (
           <>
             <button
               className="btn btn-primary"
@@ -197,6 +376,37 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
               </button>
             )}
           </>
+        )}
+
+        {isStreaming && !recording && mode === 'video' && (
+          <>
+            <button
+              className="btn btn-danger"
+              onClick={startRecording}
+              style={{ width: 64, height: 64, borderRadius: '50%', fontSize: 0 }}
+            >
+              <Video size={28} />
+            </button>
+            {onCancel && (
+              <button className="btn btn-secondary" onClick={() => {
+                if (streamRef.current) stopCamera(streamRef.current);
+                setIsStreaming(false);
+                onCancel();
+              }}>
+                Annuler
+              </button>
+            )}
+          </>
+        )}
+
+        {recording && (
+          <button
+            className="btn btn-danger"
+            onClick={stopRecording}
+            style={{ width: 64, height: 64, borderRadius: '50%', fontSize: 0, animation: 'pulse-glow 1s infinite' }}
+          >
+            <StopCircle size={28} />
+          </button>
         )}
 
         {preview && (
