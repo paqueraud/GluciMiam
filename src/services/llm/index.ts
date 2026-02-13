@@ -11,7 +11,7 @@ const PROVIDER_URLS: Record<LLMProvider, string> = {
 const DEFAULT_MODELS: Record<LLMProvider, string> = {
   claude: 'claude-sonnet-4-5-20250929',
   chatgpt: 'gpt-4o',
-  gemini: 'gemini-2.0-flash',
+  gemini: 'gemini-3-flash-preview',
   perplexity: 'sonar-pro',
 };
 
