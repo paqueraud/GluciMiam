@@ -12,7 +12,7 @@ export async function loadFoodDatabaseFromExcel(file: File): Promise<number> {
   let imported = 0;
   for (const row of rows) {
     const name = String(row['Aliment'] || row['aliment'] || row['Nom'] || row['nom'] || row['Name'] || row['name'] || '').trim();
-    const carbsRaw = row['Glucides (g/100g)'] || row['glucides'] || row['Glucides'] || row['Carbs'] || row['carbs'] || row['glucides_100g'] || 0;
+    const carbsRaw = row['Glucides % (en g/100g)'] || row['Glucides (g/100g)'] || row['glucides'] || row['Glucides'] || row['Carbs'] || row['carbs'] || row['glucides_100g'] || 0;
     const carbs = parseFloat(String(carbsRaw));
 
     if (name && !isNaN(carbs)) {
@@ -36,6 +36,23 @@ export async function searchFoodLocal(query: string): Promise<FoodDatabaseEntry[
   const lower = query.toLowerCase();
   const all = await db.foodDatabase.toArray();
   return all.filter((entry) => entry.name.toLowerCase().includes(lower));
+}
+
+export async function searchFoodMultiKeyword(query: string): Promise<FoodDatabaseEntry[]> {
+  if (!query.trim()) return [];
+  const keywords = query.toLowerCase().split(/[\s,;]+/).filter((k) => k.length > 2);
+  if (keywords.length === 0) return [];
+  const all = await db.foodDatabase.toArray();
+  // Score each entry by number of matching keywords
+  const scored = all
+    .map((entry) => {
+      const name = entry.name.toLowerCase();
+      const score = keywords.filter((kw) => name.includes(kw)).length;
+      return { entry, score };
+    })
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return scored.slice(0, 5).map((s) => s.entry);
 }
 
 export async function searchFoodOnline(query: string): Promise<FoodDatabaseEntry | null> {

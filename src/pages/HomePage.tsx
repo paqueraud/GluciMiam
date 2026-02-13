@@ -129,9 +129,10 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     if (user) {
       setCurrentUser(user);
       isCreatingSession.current = true;
+      setStep('analyzing');
+      setAnalyzing(true);
       const session = await startSession(userId);
       if (pendingPhoto) {
-        setAnalyzing(true);
         await processAndAddFoodItem(pendingPhoto, user.fingerLengthMm, session.id!, pendingContext);
       }
       isCreatingSession.current = false;

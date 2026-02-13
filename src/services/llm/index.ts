@@ -1,5 +1,6 @@
 import type { LLMConfig, LLMAnalysisResult, LLMProvider } from '../../types';
 import { db } from '../../db';
+import { searchFoodMultiKeyword, searchFoodOnline } from '../food';
 
 const PROVIDER_URLS: Record<LLMProvider, string> = {
   claude: 'https://api.anthropic.com/v1/messages',
@@ -15,13 +16,17 @@ const DEFAULT_MODELS: Record<LLMProvider, string> = {
   perplexity: 'sonar-pro',
 };
 
-function buildPrompt(fingerLengthMm: number, userContext?: string): string {
+function buildPrompt(fingerLengthMm: number, userContext?: string, dbHints?: string): string {
   const contextLine = userContext
-    ? `\nIMPORTANT - L'utilisateur a identifié ce plat comme : "${userContext}". Utilise cette information pour identifier l'aliment et calculer ses glucides.\n`
+    ? `\nIMPORTANT - L'utilisateur a identifié ce plat comme : "${userContext}". Utilise cette information en priorité pour identifier l'aliment.\n`
+    : '';
+
+  const dbLine = dbHints
+    ? `\nDONNÉES DE RÉFÉRENCE (base de données locale, à utiliser EN PRIORITÉ pour carbsPer100g) :\n${dbHints}\nUtilise ces valeurs de glucides/100g au lieu de tes propres estimations si un aliment correspond.\n`
     : '';
 
   return `Tu es un expert en nutrition pour diabétiques. Analyse cette photo de plat/aliment.
-Un index de ${fingerLengthMm}mm est visible comme étalon de taille.${contextLine}
+Un index de ${fingerLengthMm}mm est visible comme étalon de taille.${contextLine}${dbLine}
 Réponds UNIQUEMENT en JSON valide:
 {"foodName":"nom en français","estimatedWeightG":poids_grammes,"carbsPer100g":glucides_pour_100g,"totalCarbsG":total_glucides,"confidence":0.0_a_1.0,"reasoning":"explication courte"}
 Si impossible: {"error":"raison","needsRetake":true}`;
@@ -292,6 +297,61 @@ async function getActiveConfig(): Promise<LLMConfig> {
   return config;
 }
 
+async function fetchWithTimeout(fetchFn: () => Promise<string>, timeoutMs = 30000): Promise<string> {
+  return Promise.race([
+    fetchFn(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout: le LLM n\'a pas répondu dans les 30 secondes. Réessayez.')), timeoutMs)
+    ),
+  ]);
+}
+
+async function lookupFoodDB(userContext?: string): Promise<string> {
+  if (!userContext) return '';
+  try {
+    const matches = await searchFoodMultiKeyword(userContext);
+    if (matches.length > 0) {
+      return matches
+        .map((m) => `- ${m.name}: ${m.carbsPer100g}g glucides/100g`)
+        .join('\n');
+    }
+  } catch { /* silent */ }
+  return '';
+}
+
+async function correctWithFoodDB(result: LLMAnalysisResult): Promise<LLMAnalysisResult> {
+  try {
+    // Search local DB with the detected food name
+    const matches = await searchFoodMultiKeyword(result.foodName);
+    if (matches.length > 0) {
+      const bestMatch = matches[0];
+      const dbCarbs = bestMatch.carbsPer100g;
+      // If the LLM's carbsPer100g differs significantly from DB, use DB value
+      if (Math.abs(result.carbsPer100g - dbCarbs) > 2) {
+        const correctedTotal = Math.round((result.estimatedWeightG * dbCarbs / 100) * 10) / 10;
+        return {
+          ...result,
+          carbsPer100g: dbCarbs,
+          totalCarbsG: correctedTotal,
+          reasoning: `${result.reasoning} [Corrigé via BDD locale: ${bestMatch.name} = ${dbCarbs}g/100g]`,
+        };
+      }
+    }
+    // Try OpenFoodFacts as fallback
+    const onlineMatch = await searchFoodOnline(result.foodName);
+    if (onlineMatch && Math.abs(result.carbsPer100g - onlineMatch.carbsPer100g) > 5) {
+      const correctedTotal = Math.round((result.estimatedWeightG * onlineMatch.carbsPer100g / 100) * 10) / 10;
+      return {
+        ...result,
+        carbsPer100g: onlineMatch.carbsPer100g,
+        totalCarbsG: correctedTotal,
+        reasoning: `${result.reasoning} [Corrigé via OpenFoodFacts: ${onlineMatch.name} = ${onlineMatch.carbsPer100g}g/100g]`,
+      };
+    }
+  } catch { /* silent, return original */ }
+  return result;
+}
+
 export async function analyzeFood(
   imageBase64: string,
   fingerLengthMm: number,
@@ -299,25 +359,26 @@ export async function analyzeFood(
 ): Promise<LLMAnalysisResult> {
   const config = await getActiveConfig();
 
-  const prompt = buildPrompt(fingerLengthMm, userContext);
+  // Search food DB to include hints in prompt
+  const dbHints = await lookupFoodDB(userContext);
+  const prompt = buildPrompt(fingerLengthMm, userContext, dbHints || undefined);
 
-  let responseText: string;
-  switch (config.provider) {
-    case 'claude':
-      responseText = await callClaude(config, imageBase64, prompt);
-      break;
-    case 'chatgpt':
-      responseText = await callChatGPT(config, imageBase64, prompt);
-      break;
-    case 'gemini':
-      responseText = await callGemini(config, imageBase64, prompt);
-      break;
-    case 'perplexity':
-      responseText = await callPerplexity(config, imageBase64, prompt);
-      break;
-    default:
-      throw new Error(`Provider non supporté: ${config.provider}`);
-  }
+  const callLLM = () => {
+    switch (config.provider) {
+      case 'claude':
+        return callClaude(config, imageBase64, prompt);
+      case 'chatgpt':
+        return callChatGPT(config, imageBase64, prompt);
+      case 'gemini':
+        return callGemini(config, imageBase64, prompt);
+      case 'perplexity':
+        return callPerplexity(config, imageBase64, prompt);
+      default:
+        throw new Error(`Provider non supporté: ${config.provider}`);
+    }
+  };
+
+  const responseText = await fetchWithTimeout(callLLM, 30000);
 
   const result = parseResponse(responseText);
 
@@ -325,7 +386,9 @@ export async function analyzeFood(
     throw new Error(result.error);
   }
 
-  return result as LLMAnalysisResult;
+  // Correct carbsPer100g using food database
+  const corrected = await correctWithFoodDB(result as LLMAnalysisResult);
+  return corrected;
 }
 
 export async function testLLMConnection(): Promise<{ success: boolean; message: string; provider: string; model: string }> {

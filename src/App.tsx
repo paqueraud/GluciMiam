@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Trash2 } from 'lucide-react';
 import './assets/styles/theme.css';
 import BurgerMenu from './components/layout/BurgerMenu';
 import HomePage from './pages/HomePage';
@@ -82,8 +83,9 @@ function EditUserPage({
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const { users } = useAppStore();
+  const { users, deleteUser, loadUsers } = useAppStore();
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   // If we have a user ID, load it
   if (editUserId && !user) {
@@ -91,6 +93,21 @@ function EditUserPage({
       if (u) setUser(u);
     });
   }
+
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirmDeleteId === id) {
+      await deleteUser(id);
+      await loadUsers();
+      setConfirmDeleteId(null);
+      if (editUserId === id) {
+        setEditUserId(null);
+        setUser(null);
+      }
+    } else {
+      setConfirmDeleteId(id);
+    }
+  };
 
   if (!editUserId) {
     return (
@@ -106,27 +123,49 @@ function EditUserPage({
           Modifier un profil
         </h2>
         {users.map((u) => (
-          <button
+          <div
             key={u.id}
-            onClick={() => setEditUserId(u.id!)}
-            className="glass"
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '14px 16px',
-              marginBottom: 8,
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-card)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: 15,
-              fontWeight: 500,
-            }}
+            style={{ position: 'relative', marginBottom: 8 }}
           >
-            {u.name} - {u.age} ans
-          </button>
+            <button
+              onClick={() => setEditUserId(u.id!)}
+              className="glass"
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '14px 16px',
+                paddingRight: 48,
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-card)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: 15,
+                fontWeight: 500,
+              }}
+            >
+              {u.name} - {u.age} ans
+            </button>
+            <button
+              onClick={(e) => handleDelete(u.id!, e)}
+              title={confirmDeleteId === u.id ? 'Confirmer' : 'Supprimer'}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 6,
+                color: confirmDeleteId === u.id ? 'var(--danger)' : 'var(--text-muted)',
+                zIndex: 2,
+              }}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         ))}
         <button className="btn btn-secondary" onClick={onCancel} style={{ width: '100%', marginTop: 16 }}>
           Retour
