@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Check, X, Trash2, RefreshCw, Loader } from 'lucide-react';
+import { Pencil, Check, X, Trash2, RefreshCw, Loader, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { analyzeFood } from '../../services/llm';
 
@@ -13,6 +13,7 @@ export default function FoodItemCard({ onError }: FoodItemCardProps) {
   const [editValue, setEditValue] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
 
   if (sessionFoodItems.length === 0) return null;
 
@@ -241,6 +242,49 @@ export default function FoodItemCard({ onError }: FoodItemCardProps) {
         }}>
           Estimation initiale : {item.estimatedCarbsG.toFixed(1)}g (corrigé)
         </div>
+      )}
+
+      {/* LLM detail toggle */}
+      {item.llmResponse && (
+        <>
+          <button
+            onClick={() => setShowDetail(!showDetail)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: 11,
+              padding: '4px 0',
+            }}
+          >
+            <Info size={13} />
+            Détail LLM
+            {showDetail ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+
+          {showDetail && (
+            <div style={{
+              padding: '10px 12px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              fontSize: 11,
+              color: 'var(--text-secondary)',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              maxHeight: 200,
+              overflowY: 'auto',
+            }}>
+              {item.llmResponse}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
