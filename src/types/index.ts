@@ -96,6 +96,28 @@ export interface LLMFoodEntry {
 // Alias for backward compatibility
 export type LLMAnalysisResult = LLMFoodEntry;
 
+// ===== Correction Learning Types =====
+
+export interface CorrectionPattern {
+  id?: number;
+  userId: number;
+  foodName: string;        // nom normalisé (lowercase, trimmed)
+  weightRatio: number;     // ratio poids corrigé / estimé
+  carbsRatio: number;      // ratio glucides corrigés / estimés
+  createdAt: Date;
+}
+
+// ===== Image Cache Types =====
+
+export interface ImageCacheEntry {
+  id?: number;
+  userId: number;
+  imageHash: string;         // hash perceptuel (256 bits en hex)
+  foodResults: LLMFoodEntry[];
+  sessionDate: Date;
+  userContext?: string;
+}
+
 // ===== Export/Import Types =====
 
 export interface ExportData {

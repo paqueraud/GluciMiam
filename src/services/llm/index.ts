@@ -1,7 +1,7 @@
-import type { LLMConfig, LLMAnalysisResult, LLMProvider, LLMFoodEntry } from '../../types';
+import type { LLMConfig, LLMAnalysisResult, LLMProvider, LLMFoodEntry, ImageCacheEntry } from '../../types';
 import { db } from '../../db';
 import { searchFoodMultiKeyword, searchFoodOnline } from '../food';
-import { optimizeImageForLLM } from '../camera';
+import { optimizeImageForLLM, computePerceptualHash, hammingDistance } from '../camera';
 
 const PROVIDER_URLS: Record<LLMProvider, string> = {
   claude: 'https://api.anthropic.com/v1/messages',
@@ -472,12 +472,128 @@ function deduplicateFoods(foods: LLMFoodEntry[], maxCount?: number): LLMFoodEntr
   return result;
 }
 
+// ─── Correction learning ────────────────────────────────────────────
+
+async function applyCorrectionPatterns(
+  foods: LLMFoodEntry[],
+  userId: number,
+): Promise<LLMFoodEntry[]> {
+  const result: LLMFoodEntry[] = [];
+  for (const food of foods) {
+    const normalized = food.foodName.toLowerCase().trim();
+    try {
+      const patterns = await db.correctionPatterns
+        .where('[userId+foodName]')
+        .equals([userId, normalized])
+        .reverse()
+        .limit(10)
+        .toArray();
+
+      // Fallback: query by userId only and filter by foodName
+      let usablePatterns = patterns;
+      if (usablePatterns.length === 0) {
+        const allForUser = await db.correctionPatterns
+          .where('userId')
+          .equals(userId)
+          .toArray();
+        usablePatterns = allForUser
+          .filter((p) => p.foodName === normalized)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, 10);
+      }
+
+      if (usablePatterns.length === 0) {
+        result.push(food);
+        continue;
+      }
+
+      const avgWeightRatio = usablePatterns.reduce((s, p) => s + p.weightRatio, 0) / usablePatterns.length;
+      const avgCarbsRatio = usablePatterns.reduce((s, p) => s + p.carbsRatio, 0) / usablePatterns.length;
+
+      const adjusted = { ...food };
+      const notes: string[] = [];
+
+      if (Math.abs(avgWeightRatio - 1.0) > 0.05) {
+        adjusted.estimatedWeightG = Math.round(food.estimatedWeightG * avgWeightRatio);
+        adjusted.totalCarbsG = Math.round((adjusted.estimatedWeightG * adjusted.carbsPer100g / 100) * 10) / 10;
+        notes.push(`poids x${avgWeightRatio.toFixed(2)}`);
+      }
+      if (Math.abs(avgCarbsRatio - 1.0) > 0.05 && notes.length === 0) {
+        adjusted.totalCarbsG = Math.round(food.totalCarbsG * avgCarbsRatio * 10) / 10;
+        notes.push(`glucides x${avgCarbsRatio.toFixed(2)}`);
+      }
+
+      if (notes.length > 0) {
+        adjusted.reasoning = `${food.reasoning || ''} [Apprentissage: ${notes.join(', ')} sur ${usablePatterns.length} correction(s)]`;
+      }
+
+      result.push(adjusted);
+    } catch {
+      result.push(food);
+    }
+  }
+  return result;
+}
+
+// ─── Image cache ────────────────────────────────────────────────────
+
+const CACHE_HAMMING_THRESHOLD = 20;
+
+export async function findCachedAnalysis(
+  imageDataUrl: string,
+  userId: number,
+): Promise<{ entry: ImageCacheEntry; distance: number } | null> {
+  try {
+    const hash = await computePerceptualHash(imageDataUrl);
+    if (!hash) return null;
+
+    const entries = await db.imageCache
+      .where('userId')
+      .equals(userId)
+      .toArray();
+
+    let bestMatch: { entry: ImageCacheEntry; distance: number } | null = null;
+    for (const entry of entries) {
+      const dist = hammingDistance(hash, entry.imageHash);
+      if (dist < CACHE_HAMMING_THRESHOLD) {
+        if (!bestMatch || dist < bestMatch.distance) {
+          bestMatch = { entry, distance: dist };
+        }
+      }
+    }
+    return bestMatch;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCacheEntry(
+  imageDataUrl: string,
+  userId: number,
+  results: LLMFoodEntry[],
+  sessionDate: Date,
+  userContext?: string,
+): Promise<void> {
+  try {
+    const hash = await computePerceptualHash(imageDataUrl);
+    if (!hash) return;
+    await db.imageCache.add({
+      userId,
+      imageHash: hash,
+      foodResults: results,
+      sessionDate,
+      userContext,
+    });
+  } catch { /* silent */ }
+}
+
 // ─── Main analysis: 2-pass multi-food ───────────────────────────────
 
 export async function analyzeFoodMulti(
   images: string[],
   fingerLengthMm: number,
   userContext?: string,
+  userId?: number,
 ): Promise<LLMFoodEntry[]> {
   const config = await getActiveConfig();
 
@@ -523,6 +639,11 @@ export async function analyzeFoodMulti(
   for (const food of deduped) {
     const corrected = await correctWithFoodDB(food);
     correctedFoods.push(corrected);
+  }
+
+  // Apply user correction learning patterns
+  if (userId) {
+    return applyCorrectionPatterns(correctedFoods, userId);
   }
 
   return correctedFoods;

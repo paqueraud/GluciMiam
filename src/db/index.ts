@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { UserProfile, MealSession, FoodItem, FoodDatabaseEntry, LLMConfig } from '../types';
+import type { UserProfile, MealSession, FoodItem, FoodDatabaseEntry, LLMConfig, CorrectionPattern, ImageCacheEntry } from '../types';
 import seedFoods from '../data/seedFoods.json';
 
 export class GlucIADB extends Dexie {
@@ -8,6 +8,8 @@ export class GlucIADB extends Dexie {
   foodItems!: Table<FoodItem, number>;
   foodDatabase!: Table<FoodDatabaseEntry, number>;
   llmConfigs!: Table<LLMConfig, number>;
+  correctionPatterns!: Table<CorrectionPattern, number>;
+  imageCache!: Table<ImageCacheEntry, number>;
 
   constructor() {
     super('GlucIADB');
@@ -17,6 +19,15 @@ export class GlucIADB extends Dexie {
       foodItems: '++id, sessionId, photoTimestamp',
       foodDatabase: '++id, name, source',
       llmConfigs: '++id, provider, isActive',
+    });
+    this.version(2).stores({
+      users: '++id, name',
+      sessions: '++id, userId, isActive, startedAt',
+      foodItems: '++id, sessionId, photoTimestamp',
+      foodDatabase: '++id, name, source',
+      llmConfigs: '++id, provider, isActive',
+      correctionPatterns: '++id, userId, foodName, createdAt',
+      imageCache: '++id, userId, imageHash, sessionDate',
     });
   }
 }

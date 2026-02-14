@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Loader } from 'lucide-react';
+import { Plus, Loader, Clock, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../stores/appStore';
 import CameraCapture from '../components/camera/CameraCapture';
 import UserSelector from '../components/user/UserSelector';
-import { analyzeFoodMulti } from '../services/llm';
+import { analyzeFoodMulti, findCachedAnalysis, saveCacheEntry } from '../services/llm';
 import { db } from '../db';
+import type { ImageCacheEntry, LLMFoodEntry } from '../types';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
 }
 
-type Step = 'idle' | 'select-user' | 'camera' | 'analyzing';
+type Step = 'idle' | 'select-user' | 'camera' | 'analyzing' | 'cache-prompt';
 
 export default function HomePage({ onNavigate }: HomePageProps) {
   const {
@@ -25,6 +26,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
   const [step, setStep] = useState<Step>('idle');
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cacheHit, setCacheHit] = useState<{ entry: ImageCacheEntry; photos: string[]; userContext?: string } | null>(null);
   const isCreatingSession = useRef(false);
 
   useEffect(() => {
@@ -68,21 +70,78 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     const user = useAppStore.getState().currentUser;
     if (!user) return;
 
+    // Check image cache before LLM call
+    const cached = await findCachedAnalysis(photos[0], user.id!);
+    if (cached) {
+      setCacheHit({ entry: cached.entry, photos, userContext });
+      setStep('cache-prompt');
+      return;
+    }
+
+    await runAnalysis(photos, userContext);
+  }, [startSession, onNavigate]);
+
+  const runAnalysis = async (photos: string[], userContext?: string) => {
+    const user = useAppStore.getState().currentUser;
+    if (!user) return;
+
     setStep('analyzing');
     setAnalyzing(true);
     isCreatingSession.current = true;
 
     const session = await startSession(user.id!);
-    await processAndAddFoodItems(photos, user.fingerLengthMm, session.id!, userContext);
+    await processAndAddFoodItems(photos, user.fingerLengthMm, user.id!, session.id!, userContext);
 
     isCreatingSession.current = false;
     onNavigate('session');
-  }, [startSession, onNavigate]);
+  };
 
-  const processAndAddFoodItems = async (photos: string[], fingerLengthMm: number, sessionId: number, userContext?: string) => {
-    const photoBase64 = photos[0]; // primary photo for storage
+  const handleUseCachedResults = async () => {
+    if (!cacheHit) return;
+    const user = useAppStore.getState().currentUser;
+    if (!user) return;
+
+    setStep('analyzing');
+    setAnalyzing(true);
+    isCreatingSession.current = true;
+
+    const session = await startSession(user.id!);
+    await addCachedFoodItems(cacheHit.entry.foodResults, cacheHit.photos[0], session.id!, cacheHit.userContext);
+
+    setCacheHit(null);
+    isCreatingSession.current = false;
+    onNavigate('session');
+  };
+
+  const handleSkipCache = async () => {
+    if (!cacheHit) return;
+    const { photos, userContext } = cacheHit;
+    setCacheHit(null);
+    await runAnalysis(photos, userContext);
+  };
+
+  const addCachedFoodItems = async (results: LLMFoodEntry[], photoBase64: string, sessionId: number, userContext?: string) => {
+    const { addFoodItem } = useAppStore.getState();
+    for (const result of results) {
+      await addFoodItem({
+        sessionId,
+        photoBase64,
+        photoTimestamp: new Date(),
+        userContext,
+        detectedFoodName: result.foodName,
+        estimatedWeightG: result.estimatedWeightG,
+        estimatedCarbsG: result.totalCarbsG,
+        carbsPer100g: result.carbsPer100g,
+        llmResponse: (result.reasoning || '') + ' [depuis cache]',
+        confidence: result.confidence,
+      });
+    }
+  };
+
+  const processAndAddFoodItems = async (photos: string[], fingerLengthMm: number, userId: number, sessionId: number, userContext?: string) => {
+    const photoBase64 = photos[0];
     try {
-      const results = await analyzeFoodMulti(photos, fingerLengthMm, userContext);
+      const results = await analyzeFoodMulti(photos, fingerLengthMm, userContext, userId);
       const { addFoodItem } = useAppStore.getState();
       for (const result of results) {
         await addFoodItem({
@@ -98,6 +157,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
           confidence: result.confidence,
         });
       }
+      // Save to image cache for future reuse
+      await saveCacheEntry(photoBase64, userId, results, new Date(), userContext);
     } catch (err) {
       const { addFoodItem } = useAppStore.getState();
       await addFoodItem({
@@ -229,6 +290,65 @@ export default function HomePage({ onNavigate }: HomePageProps) {
               onCapture={handlePhotoCapture}
               onCancel={() => setStep('idle')}
             />
+          </motion.div>
+        )}
+
+        {step === 'cache-prompt' && cacheHit && (
+          <motion.div
+            key="cache-prompt"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 16,
+              width: '100%',
+              maxWidth: 360,
+            }}
+          >
+            <div className="glass" style={{
+              padding: 20,
+              borderRadius: 'var(--radius-lg)',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              textAlign: 'center',
+            }}>
+              <Clock size={32} color="var(--accent-primary)" style={{ margin: '0 auto' }} />
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Plat similaire reconnu
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Similaire au {cacheHit.entry.sessionDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 0' }}>
+                {cacheHit.entry.foodResults.map((food, i) => (
+                  <div key={i} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '4px 8px',
+                    fontSize: 13,
+                    color: 'var(--text-secondary)',
+                  }}>
+                    <span>{food.foodName}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                      {food.totalCarbsG.toFixed(1)}g
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary" onClick={handleUseCachedResults} style={{ flex: 1, fontSize: 13, gap: 6 }}>
+                  <Clock size={14} /> Réutiliser
+                </button>
+                <button className="btn btn-secondary" onClick={handleSkipCache} style={{ flex: 1, fontSize: 13, gap: 6 }}>
+                  <RefreshCw size={14} /> Nouvelle analyse
+                </button>
+              </div>
+            </div>
           </motion.div>
         )}
 

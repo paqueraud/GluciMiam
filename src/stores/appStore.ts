@@ -114,19 +114,53 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   updateFoodItem: async (id, updates) => {
+    // Get original item BEFORE update to compute correction ratios
+    const originalItem = get().sessionFoodItems.find((item) => item.id === id);
+
     await db.foodItems.update(id, updates);
     set((s) => ({
       sessionFoodItems: s.sessionFoodItems.map((item) =>
         item.id === id ? { ...item, ...updates } : item
       ),
     }));
-    const { activeSession } = get();
+    const { activeSession, currentUser } = get();
     if (activeSession?.id) {
       const total = get().getTotalCarbs();
       await db.sessions.update(activeSession.id, { totalCarbsG: total });
       set((s) => ({
         activeSession: s.activeSession ? { ...s.activeSession, totalCarbsG: total } : null,
       }));
+    }
+
+    // Store correction pattern for learning
+    if (originalItem && currentUser?.id) {
+      const hasWeightCorrection = updates.estimatedWeightG !== undefined
+        && originalItem.estimatedWeightG > 0
+        && updates.estimatedWeightG !== originalItem.estimatedWeightG;
+      const hasCarbsCorrection = updates.correctedCarbsG !== undefined
+        && originalItem.estimatedCarbsG > 0
+        && updates.correctedCarbsG !== originalItem.estimatedCarbsG;
+
+      if (hasWeightCorrection || hasCarbsCorrection) {
+        const weightRatio = hasWeightCorrection
+          ? (updates.estimatedWeightG as number) / originalItem.estimatedWeightG
+          : 1.0;
+        const carbsRatio = hasCarbsCorrection
+          ? (updates.correctedCarbsG as number) / originalItem.estimatedCarbsG
+          : 1.0;
+
+        if (weightRatio !== 1.0 || carbsRatio !== 1.0) {
+          try {
+            await db.correctionPatterns.add({
+              userId: currentUser.id,
+              foodName: originalItem.detectedFoodName.toLowerCase().trim(),
+              weightRatio,
+              carbsRatio,
+              createdAt: new Date(),
+            });
+          } catch { /* silent */ }
+        }
+      }
     }
   },
 

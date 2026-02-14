@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react';
-import { Plus, StopCircle, Loader } from 'lucide-react';
+import { Plus, StopCircle, Loader, Clock, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../stores/appStore';
 import Header from '../components/layout/Header';
 import PhotoViewer from '../components/session/PhotoViewer';
 import FoodItemCard from '../components/session/FoodItemCard';
 import CameraCapture from '../components/camera/CameraCapture';
-import { analyzeFoodMulti } from '../services/llm';
+import { analyzeFoodMulti, findCachedAnalysis, saveCacheEntry } from '../services/llm';
+import type { ImageCacheEntry, LLMFoodEntry } from '../types';
 
 interface SessionPageProps {
   onNavigate: (page: string) => void;
@@ -18,30 +19,51 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
+  const [cacheHit, setCacheHit] = useState<{ entry: ImageCacheEntry; photos: string[]; userContext?: string } | null>(null);
+
+  const addResults = useCallback(async (results: LLMFoodEntry[], photoBase64: string, userContext?: string, fromCache = false) => {
+    if (!activeSession?.id) return;
+    for (const result of results) {
+      await addFoodItem({
+        sessionId: activeSession.id,
+        photoBase64,
+        photoTimestamp: new Date(),
+        userContext,
+        detectedFoodName: result.foodName,
+        estimatedWeightG: result.estimatedWeightG,
+        estimatedCarbsG: result.totalCarbsG,
+        carbsPer100g: result.carbsPer100g,
+        llmResponse: (result.reasoning || '') + (fromCache ? ' [depuis cache]' : ''),
+        confidence: result.confidence,
+      });
+    }
+  }, [activeSession, addFoodItem]);
 
   const handleAddPhoto = useCallback(async (photos: string[], userContext?: string) => {
     if (!activeSession?.id || !currentUser) return;
     setShowCamera(false);
+    setLlmError(null);
+
+    // Check cache first
+    const cached = await findCachedAnalysis(photos[0], currentUser.id!);
+    if (cached) {
+      setCacheHit({ entry: cached.entry, photos, userContext });
+      return;
+    }
+
+    await runAnalysis(photos, userContext);
+  }, [activeSession, currentUser, addFoodItem]);
+
+  const runAnalysis = async (photos: string[], userContext?: string) => {
+    if (!activeSession?.id || !currentUser) return;
     setAnalyzing(true);
     setLlmError(null);
 
-    const photoBase64 = photos[0]; // primary photo for storage
+    const photoBase64 = photos[0];
     try {
-      const results = await analyzeFoodMulti(photos, currentUser.fingerLengthMm, userContext);
-      for (const result of results) {
-        await addFoodItem({
-          sessionId: activeSession.id,
-          photoBase64,
-          photoTimestamp: new Date(),
-          userContext,
-          detectedFoodName: result.foodName,
-          estimatedWeightG: result.estimatedWeightG,
-          estimatedCarbsG: result.totalCarbsG,
-          carbsPer100g: result.carbsPer100g,
-          llmResponse: result.reasoning,
-          confidence: result.confidence,
-        });
-      }
+      const results = await analyzeFoodMulti(photos, currentUser.fingerLengthMm, userContext, currentUser.id);
+      await addResults(results, photoBase64, userContext);
+      await saveCacheEntry(photoBase64, currentUser.id!, results, new Date(), userContext);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erreur inconnue';
       setLlmError(errorMsg);
@@ -59,7 +81,22 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
     }
 
     setAnalyzing(false);
-  }, [activeSession, currentUser, addFoodItem]);
+  };
+
+  const handleUseCachedResults = async () => {
+    if (!cacheHit) return;
+    setAnalyzing(true);
+    await addResults(cacheHit.entry.foodResults, cacheHit.photos[0], cacheHit.userContext, true);
+    setCacheHit(null);
+    setAnalyzing(false);
+  };
+
+  const handleSkipCache = async () => {
+    if (!cacheHit) return;
+    const { photos, userContext } = cacheHit;
+    setCacheHit(null);
+    await runAnalysis(photos, userContext);
+  };
 
   const handleEndSession = async () => {
     await endSession();
@@ -103,13 +140,57 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
               animate={{ opacity: 1 }}
               style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
             >
+              {/* Cache prompt */}
+              {cacheHit && (
+                <div className="glass" style={{
+                  padding: 16,
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  border: '1px solid var(--accent-primary)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Clock size={18} color="var(--accent-primary)" />
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Plat similaire reconnu
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Similaire au {cacheHit.entry.sessionDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  {cacheHit.entry.foodResults.map((food, i) => (
+                    <div key={i} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 13,
+                      color: 'var(--text-secondary)',
+                      padding: '2px 4px',
+                    }}>
+                      <span>{food.foodName}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                        {food.totalCarbsG.toFixed(1)}g
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button className="btn btn-primary" onClick={handleUseCachedResults} style={{ flex: 1, fontSize: 12, gap: 6 }}>
+                      <Clock size={14} /> Réutiliser
+                    </button>
+                    <button className="btn btn-secondary" onClick={handleSkipCache} style={{ flex: 1, fontSize: 12, gap: 6 }}>
+                      <RefreshCw size={14} /> Nouvelle analyse
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Photo Viewer */}
               {sessionFoodItems.length > 0 ? (
                 <>
                   <PhotoViewer />
                   <FoodItemCard onError={(msg) => setLlmError(msg)} />
                 </>
-              ) : (
+              ) : !cacheHit ? (
                 <div
                   style={{
                     padding: 40,
@@ -137,7 +218,7 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
                     </>
                   )}
                 </div>
-              )}
+              ) : null}
 
               {/* Food items list summary */}
               {sessionFoodItems.length > 1 && (

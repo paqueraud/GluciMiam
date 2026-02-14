@@ -34,6 +34,61 @@ export async function fileToBase64(file: File): Promise<string> {
 }
 
 /**
+ * Compute a perceptual hash of an image (16x16 grayscale → 256-bit hash as hex).
+ * Used for detecting similar images across sessions.
+ */
+export function computePerceptualHash(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, 16, 16);
+      const data = ctx.getImageData(0, 0, 16, 16).data;
+
+      // Convert to grayscale and compute average
+      const gray: number[] = [];
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const g = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+        gray.push(g);
+        sum += g;
+      }
+      const avg = sum / gray.length;
+
+      // Build bit string: pixel > average = 1, else 0
+      let hex = '';
+      for (let i = 0; i < gray.length; i += 4) {
+        let nibble = 0;
+        for (let b = 0; b < 4 && i + b < gray.length; b++) {
+          if (gray[i + b] >= avg) nibble |= (1 << (3 - b));
+        }
+        hex += nibble.toString(16);
+      }
+      resolve(hex);
+    };
+    img.onerror = () => resolve('');
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Compute Hamming distance between two hex hash strings.
+ */
+export function hammingDistance(hash1: string, hash2: string): number {
+  if (hash1.length !== hash2.length) return 256;
+  let distance = 0;
+  for (let i = 0; i < hash1.length; i++) {
+    const xor = parseInt(hash1[i], 16) ^ parseInt(hash2[i], 16);
+    // Count bits in xor (4-bit)
+    distance += ((xor >> 3) & 1) + ((xor >> 2) & 1) + ((xor >> 1) & 1) + (xor & 1);
+  }
+  return distance;
+}
+
+/**
  * Optimize an image for LLM analysis:
  * 1. Resize so the longest side is <= maxSize (default 1024)
  * 2. Apply auto-levels (histogram stretching) for better contrast
