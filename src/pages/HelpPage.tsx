@@ -20,7 +20,7 @@ const SECTIONS_DATA: { id: string; title: string; iconName: string; keywords: st
     title: 'Démarrage rapide',
     iconName: 'camera',
     keywords: 'commencer démarrer début première session photo',
-    content: `Pour utiliser GluciMiam, suivez ces étapes :
+    content: `Pour utiliser GlucIA, suivez ces étapes :
 
 1. Créer un profil utilisateur
 Depuis le menu latéral, cliquez sur Nouvel utilisateur. Renseignez votre nom, âge, et la longueur de votre index (mesurée en mm). Cette mesure sert d'étalon pour estimer la taille des aliments.
@@ -133,7 +133,7 @@ Lors de l'analyse, les valeurs sont utilisées dans cet ordre :
     title: 'Configuration du LLM',
     iconName: 'settings',
     keywords: 'configuration LLM IA clé API gemini claude chatgpt openai modèle fournisseur',
-    content: `GluciMiam supporte plusieurs fournisseurs d'intelligence artificielle :
+    content: `GlucIA supporte plusieurs fournisseurs d'intelligence artificielle :
 
 Fournisseurs disponibles
 - Gemini (Google) : gratuit, bonne qualité d'analyse
@@ -299,12 +299,13 @@ function HighlightedText({ text, searchQuery, currentIndex, allMatches }: {
         key={`m-${pos}`}
         data-match-index={globalIdx}
         style={{
-          background: isCurrent ? 'var(--accent-primary)' : 'rgba(0,212,255,0.25)',
-          color: isCurrent ? 'var(--bg-primary)' : 'inherit',
-          borderRadius: 3,
-          padding: '1px 2px',
+          background: isCurrent ? 'rgba(255,220,50,0.35)' : 'rgba(0,212,255,0.2)',
+          color: isCurrent ? 'var(--text-primary)' : 'inherit',
+          borderRadius: 4,
+          padding: '2px 3px',
           fontWeight: isCurrent ? 700 : 'inherit',
-          boxShadow: isCurrent ? '0 0 8px rgba(0,212,255,0.5)' : 'none',
+          border: isCurrent ? '2px solid rgba(255,220,50,0.8)' : '1px solid rgba(0,212,255,0.15)',
+          boxShadow: isCurrent ? '0 0 12px rgba(255,220,50,0.5), 0 0 24px rgba(255,220,50,0.2)' : 'none',
         }}
       >
         {text.slice(pos, pos + searchQuery.length)}

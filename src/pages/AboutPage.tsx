@@ -46,7 +46,7 @@ export default function AboutPage({ onClose }: AboutPageProps) {
             WebkitTextFillColor: 'transparent',
             lineHeight: 1.1,
           }}>
-            GluciMiam
+            GlucIA
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 8 }}>
             Version 1.0.0
@@ -56,7 +56,7 @@ export default function AboutPage({ onClose }: AboutPageProps) {
         {/* Description */}
         <Section title="Description">
           <p>
-            GluciMiam est une application progressive (PWA) de comptage des glucides
+            GlucIA est une application progressive (PWA) de comptage des glucides
             destinée aux personnes diabétiques sous insulinothérapie fonctionnelle.
           </p>
           <p style={{ marginTop: 8 }}>
@@ -112,7 +112,7 @@ export default function AboutPage({ onClose }: AboutPageProps) {
             Cette application est distribuée sous licence <strong>MIT</strong>.
           </p>
           <p style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-            Copyright (c) 2025 GluciMiam
+            Copyright (c) 2025 Nicolas PAQUERAUD - GlucIA
           </p>
           <p style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
             Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -125,10 +125,31 @@ export default function AboutPage({ onClose }: AboutPageProps) {
 
         {/* Credits */}
         <Section title="Crédits">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: 13 }}>
-            <span>Développé avec</span>
-            <Heart size={14} color="var(--danger)" fill="var(--danger)" />
-            <span>pour la communauté diabétique</span>
+          <div style={{
+            textAlign: 'center',
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Nicolas PAQUERAUD
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              marginTop: 6,
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              fontStyle: 'italic',
+            }}>
+              <span>Une application développée par un diabétique</span>
+              <Heart size={12} color="var(--danger)" fill="var(--danger)" />
+              <span>pour les diabétiques</span>
+            </div>
           </div>
           <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>
             Données nutritionnelles : base de données locale personnalisable,
@@ -147,7 +168,7 @@ export default function AboutPage({ onClose }: AboutPageProps) {
           color: 'var(--warning)',
           lineHeight: 1.5,
         }}>
-          <strong>Avertissement :</strong> GluciMiam est un outil d'aide au comptage des glucides.
+          <strong>Avertissement :</strong> GlucIA est un outil d'aide au comptage des glucides.
           Les estimations fournies par l'IA sont indicatives et ne remplacent pas l'avis
           d'un professionnel de santé. Vérifiez toujours les valeurs avant d'ajuster votre
           traitement insulinique.

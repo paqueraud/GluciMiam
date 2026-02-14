@@ -18,7 +18,7 @@ export default function ImportExport({ mode, onClose }: ImportExportProps) {
     setLoading(true);
     try {
       const json = await exportDatabase();
-      const filename = `glucimiam_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      const filename = `glucia_backup_${new Date().toISOString().slice(0, 10)}.json`;
       downloadJSON(json, filename);
       setStatus({ type: 'success', message: `Export réussi : ${filename}` });
     } catch (e) {

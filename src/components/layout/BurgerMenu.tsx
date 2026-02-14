@@ -87,7 +87,7 @@ export default function BurgerMenu({ onNavigate }: BurgerMenuProps) {
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}>
-                  GluciMiam
+                  GlucIA
                 </h2>
                 <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                   Compteur de glucides intelligent

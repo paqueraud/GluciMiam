@@ -160,7 +160,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             lineHeight: 1.1,
           }}
         >
-          GluciMiam
+          GlucIA
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 8 }}>
           Compteur de glucides intelligent

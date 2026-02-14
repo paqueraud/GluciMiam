@@ -2,7 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type { UserProfile, MealSession, FoodItem, FoodDatabaseEntry, LLMConfig } from '../types';
 import seedFoods from '../data/seedFoods.json';
 
-export class GluciMiamDB extends Dexie {
+export class GlucIADB extends Dexie {
   users!: Table<UserProfile, number>;
   sessions!: Table<MealSession, number>;
   foodItems!: Table<FoodItem, number>;
@@ -10,7 +10,7 @@ export class GluciMiamDB extends Dexie {
   llmConfigs!: Table<LLMConfig, number>;
 
   constructor() {
-    super('GluciMiamDB');
+    super('GlucIADB');
     this.version(1).stores({
       users: '++id, name',
       sessions: '++id, userId, isActive, startedAt',
@@ -21,7 +21,7 @@ export class GluciMiamDB extends Dexie {
   }
 }
 
-export const db = new GluciMiamDB();
+export const db = new GlucIADB();
 
 // Seed food database on first launch if empty
 db.on('ready', async () => {
