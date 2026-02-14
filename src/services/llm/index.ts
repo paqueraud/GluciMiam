@@ -78,6 +78,8 @@ ${carbsLines}
 Pour les aliments dont les glucides/100g sont fournis par la BDD locale, utilise EXACTEMENT ces valeurs.
 Calcule totalCarbsG = estimatedWeightG * carbsPer100g / 100.
 
+IMPORTANT : Retourne EXACTEMENT ${foodsWithCarbs.length} aliment(s) dans ta réponse (un par aliment listé ci-dessus), pas plus, pas moins.
+
 Réponds UNIQUEMENT en JSON valide:
 {"foods":[{"foodName":"nom en français","estimatedWeightG":poids_grammes,"carbsPer100g":glucides_pour_100g,"totalCarbsG":total_glucides,"confidence":0.0_a_1.0,"reasoning":"explication courte"}]}
 Si impossible: {"error":"raison","needsRetake":true}`;
@@ -432,21 +434,42 @@ async function correctWithFoodDB(result: LLMAnalysisResult): Promise<LLMAnalysis
 
 // ─── Deduplication ──────────────────────────────────────────────────
 
-function deduplicateFoods(foods: LLMFoodEntry[]): LLMFoodEntry[] {
-  const seen = new Map<string, LLMFoodEntry>();
+function normalizeFoodName(name: string): string {
+  return name.toLowerCase().trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[^a-z0-9\s]/g, '') // keep only alphanumeric
+    .replace(/\s+/g, ' ');
+}
+
+function foodNamesMatch(a: string, b: string): boolean {
+  const na = normalizeFoodName(a);
+  const nb = normalizeFoodName(b);
+  if (na === nb) return true;
+  // Check if one contains the other (e.g. "riz" and "riz blanc")
+  if (na.includes(nb) || nb.includes(na)) return true;
+  return false;
+}
+
+function deduplicateFoods(foods: LLMFoodEntry[], maxCount?: number): LLMFoodEntry[] {
+  const result: LLMFoodEntry[] = [];
   for (const food of foods) {
-    const key = food.foodName.toLowerCase().trim();
-    if (seen.has(key)) {
-      // Keep the entry with higher confidence, or average if same
-      const existing = seen.get(key)!;
+    const existing = result.find((r) => foodNamesMatch(r.foodName, food.foodName));
+    if (existing) {
+      // Keep the entry with higher confidence
       if (food.confidence > existing.confidence) {
-        seen.set(key, food);
+        const idx = result.indexOf(existing);
+        result[idx] = food;
       }
     } else {
-      seen.set(key, food);
+      result.push(food);
     }
   }
-  return [...seen.values()];
+  // Hard cap: never return more than maxCount entries
+  if (maxCount && result.length > maxCount) {
+    result.sort((a, b) => b.confidence - a.confidence);
+    return result.slice(0, maxCount);
+  }
+  return result;
 }
 
 // ─── Main analysis: 2-pass multi-food ───────────────────────────────
@@ -492,7 +515,8 @@ export async function analyzeFoodMulti(
   }
 
   // Deduplicate: merge entries with the same foodName (LLM may duplicate with multi-angle)
-  const deduped = deduplicateFoods(pass2Result);
+  // Hard cap to the number of foods identified in pass 1
+  const deduped = deduplicateFoods(pass2Result, foodNames.length);
 
   // Post-correction: for foods where BDD was not found in pass 1, try OpenFoodFacts
   const correctedFoods: LLMFoodEntry[] = [];
