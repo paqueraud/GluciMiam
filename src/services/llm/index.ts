@@ -1,4 +1,4 @@
-import type { LLMConfig, LLMAnalysisResult, LLMProvider, LLMFoodEntry, ImageCacheEntry } from '../../types';
+import type { LLMConfig, LLMAnalysisResult, LLMProvider, LLMFoodEntry, ImageCacheEntry, OnProgress } from '../../types';
 import { db } from '../../db';
 import { searchFoodMultiKeyword, searchFoodOnline } from '../food';
 import { optimizeImageForLLM, computePerceptualHash, hammingDistance } from '../camera';
@@ -240,6 +240,226 @@ function callProvider(config: LLMConfig, images: string[], prompt: string): Prom
   }
 }
 
+// ─── Streaming SSE helpers ──────────────────────────────────────────
+
+type ChunkCallback = (accumulated: string) => void;
+
+async function readSSEStream(
+  response: Response,
+  extractDelta: (parsed: Record<string, unknown>) => string,
+  onChunk?: ChunkCallback,
+  signal?: AbortSignal,
+): Promise<string> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let accumulated = '';
+  let buffer = '';
+
+  try {
+    while (true) {
+      if (signal?.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+        try {
+          const parsed = JSON.parse(line.slice(6));
+          const delta = extractDelta(parsed);
+          if (delta) {
+            accumulated += delta;
+            onChunk?.(accumulated);
+            // Try early termination if JSON is complete
+            if (tryExtractCompleteJSON(accumulated)) {
+              reader.cancel();
+              return accumulated;
+            }
+          }
+        } catch { /* skip unparseable SSE lines */ }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return accumulated;
+}
+
+function tryExtractCompleteJSON(text: string): boolean {
+  const start = text.indexOf('{');
+  if (start === -1) return false;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') { depth--; if (depth === 0) return true; }
+  }
+  return false;
+}
+
+// ─── Streaming provider calls ───────────────────────────────────────
+
+async function callClaudeStreaming(
+  config: LLMConfig, images: string[], prompt: string,
+  onChunk?: ChunkCallback, signal?: AbortSignal,
+): Promise<string> {
+  const model = config.model || DEFAULT_MODELS.claude;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const content: any[] = images.map((img) => {
+    const base64Data = img.includes(',') ? img.split(',')[1] : img;
+    return { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64Data } };
+  });
+  content.push({ type: 'text', text: prompt });
+
+  const response = await fetch(PROVIDER_URLS.claude, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': config.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({ model, max_tokens: 2048, stream: true, messages: [{ role: 'user', content }] }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Claude API erreur ${response.status}: ${err}`);
+  }
+
+  return readSSEStream(response, (parsed) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = parsed as any;
+    if (p.type === 'content_block_delta' && p.delta?.text) return p.delta.text;
+    return '';
+  }, onChunk, signal);
+}
+
+async function callChatGPTStreaming(
+  config: LLMConfig, images: string[], prompt: string,
+  onChunk?: ChunkCallback, signal?: AbortSignal,
+): Promise<string> {
+  const model = config.model || DEFAULT_MODELS.chatgpt;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const content: any[] = [{ type: 'text', text: prompt }];
+  for (const img of images) {
+    const dataUrl = img.includes(',') ? img : `data:image/jpeg;base64,${img}`;
+    content.push({ type: 'image_url', image_url: { url: dataUrl } });
+  }
+
+  const response = await fetch(PROVIDER_URLS.chatgpt, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content }], max_tokens: 2048, stream: true }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`ChatGPT API erreur ${response.status}: ${err}`);
+  }
+
+  return readSSEStream(response, (parsed) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = parsed as any;
+    return p.choices?.[0]?.delta?.content || '';
+  }, onChunk, signal);
+}
+
+async function callGeminiStreaming(
+  config: LLMConfig, images: string[], prompt: string,
+  onChunk?: ChunkCallback, signal?: AbortSignal,
+): Promise<string> {
+  const model = config.model || DEFAULT_MODELS.gemini;
+  const url = `${PROVIDER_URLS.gemini}/${model}:streamGenerateContent?alt=sse&key=${config.apiKey}`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parts: any[] = [{ text: prompt }];
+  for (const img of images) {
+    const base64Data = img.includes(',') ? img.split(',')[1] : img;
+    parts.push({ inline_data: { mime_type: 'image/jpeg', data: base64Data } });
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 4096, responseMimeType: 'application/json' },
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Gemini API erreur ${response.status}: ${err}`);
+  }
+
+  return readSSEStream(response, (parsed) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = parsed as any;
+    return p.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('') || '';
+  }, onChunk, signal);
+}
+
+async function callPerplexityStreaming(
+  config: LLMConfig, _images: string[], prompt: string,
+  onChunk?: ChunkCallback, signal?: AbortSignal,
+): Promise<string> {
+  const model = config.model || DEFAULT_MODELS.perplexity;
+  const response = await fetch(PROVIDER_URLS.perplexity, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt + '\n\n(Note: image analysis non disponible via cette API, décris les aliments mentionnés)' }],
+      max_tokens: 2048,
+      stream: true,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Perplexity API erreur ${response.status}: ${err}`);
+  }
+
+  return readSSEStream(response, (parsed) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = parsed as any;
+    return p.choices?.[0]?.delta?.content || '';
+  }, onChunk, signal);
+}
+
+function callProviderStreaming(
+  config: LLMConfig, images: string[], prompt: string,
+  onChunk?: ChunkCallback, signal?: AbortSignal,
+): Promise<string> {
+  switch (config.provider) {
+    case 'claude': return callClaudeStreaming(config, images, prompt, onChunk, signal);
+    case 'chatgpt': return callChatGPTStreaming(config, images, prompt, onChunk, signal);
+    case 'gemini': return callGeminiStreaming(config, images, prompt, onChunk, signal);
+    case 'perplexity': return callPerplexityStreaming(config, images, prompt, onChunk, signal);
+    default: throw new Error(`Provider non supporté: ${config.provider}`);
+  }
+}
+
 // ─── JSON extraction / parsing ──────────────────────────────────────
 
 function extractJSON(text: string): string {
@@ -347,6 +567,30 @@ function parsePass2Response(text: string): LLMFoodEntry[] | { error: string; nee
   }
 }
 
+// Parse partial foods from streaming response (best-effort)
+function parsePartialFoods(text: string): LLMFoodEntry[] {
+  // Try to extract individual food objects from partial JSON
+  const foods: LLMFoodEntry[] = [];
+  const regex = /\{[^{}]*"foodName"\s*:\s*"[^"]+"\s*[^{}]*"totalCarbsG"\s*:\s*[\d.]+[^{}]*\}/g;
+  const matches = text.matchAll(regex);
+  for (const match of matches) {
+    try {
+      const parsed = JSON.parse(match[0]);
+      if (parsed.foodName && parsed.totalCarbsG !== undefined) {
+        foods.push({
+          foodName: parsed.foodName,
+          estimatedWeightG: parsed.estimatedWeightG || 0,
+          carbsPer100g: parsed.carbsPer100g || 0,
+          totalCarbsG: parsed.totalCarbsG,
+          confidence: parsed.confidence ?? 0.5,
+          reasoning: parsed.reasoning,
+        });
+      }
+    } catch { /* partial object, skip */ }
+  }
+  return foods;
+}
+
 // Legacy single-item parser
 function parseSingleResponse(text: string): LLMAnalysisResult | { error: string; needsRetake: boolean } {
   const jsonStr = extractJSON(text);
@@ -370,12 +614,39 @@ async function getActiveConfig(): Promise<LLMConfig> {
 }
 
 async function fetchWithTimeout(fetchFn: () => Promise<string>, timeoutMs = 30000): Promise<string> {
-  return Promise.race([
-    fetchFn(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout: le LLM n\'a pas répondu dans les 30 secondes. Réessayez.')), timeoutMs)
-    ),
-  ]);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const result = await Promise.race([
+      fetchFn(),
+      new Promise<never>((_, reject) => {
+        controller.signal.addEventListener('abort', () =>
+          reject(new Error('Timeout: le LLM n\'a pas répondu dans les 30 secondes. Réessayez.'))
+        );
+      }),
+    ]);
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchStreamingWithTimeout(
+  config: LLMConfig, images: string[], prompt: string,
+  onChunk?: ChunkCallback, timeoutMs = 60000,
+): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await callProviderStreaming(config, images, prompt, onChunk, controller.signal);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error('Timeout: le LLM n\'a pas répondu à temps. Réessayez.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function lookupFoodDB(userContext?: string): Promise<string> {
@@ -594,18 +865,22 @@ export async function analyzeFoodMulti(
   fingerLengthMm: number,
   userContext?: string,
   userId?: number,
+  onProgress?: OnProgress,
 ): Promise<LLMFoodEntry[]> {
   const config = await getActiveConfig();
+  const useStreaming = !!onProgress;
 
   // Optimize all images
+  onProgress?.({ phase: 'optimizing', message: 'Optimisation des images...' });
   const optimizedImages = await Promise.all(images.map((img) => optimizeImageForLLM(img)));
 
   // ── PASS 1: Identify foods ──
+  onProgress?.({ phase: 'pass1', message: 'Identification des aliments...' });
   const pass1Prompt = buildPass1Prompt(fingerLengthMm, optimizedImages.length, userContext);
-  const pass1Text = await fetchWithTimeout(
-    () => callProvider(config, optimizedImages, pass1Prompt),
-    30000,
-  );
+
+  const pass1Text = useStreaming
+    ? await fetchStreamingWithTimeout(config, optimizedImages, pass1Prompt, undefined, 30000)
+    : await fetchWithTimeout(() => callProvider(config, optimizedImages, pass1Prompt), 30000);
 
   const foodNames = parsePass1Response(pass1Text);
 
@@ -614,15 +889,34 @@ export async function analyzeFoodMulti(
     return fallbackSingleAnalysis(config, optimizedImages, fingerLengthMm, userContext);
   }
 
+  onProgress?.({ phase: 'pass1-done', foodNames, message: `Aliments trouvés : ${foodNames.join(', ')}` });
+
   // ── BDD lookup between passes ──
+  onProgress?.({ phase: 'bdd-lookup', foodNames, message: 'Recherche dans la base de données...' });
   const foodsWithCarbs = await lookupFoodCarbsForNames(foodNames);
 
   // ── PASS 2: Quantify with known carbs ──
+  onProgress?.({ phase: 'pass2', foodNames, message: 'Quantification en cours...' });
   const pass2Prompt = buildPass2Prompt(fingerLengthMm, optimizedImages.length, foodsWithCarbs, userContext);
-  const pass2Text = await fetchWithTimeout(
-    () => callProvider(config, optimizedImages, pass2Prompt),
-    30000,
-  );
+
+  let pass2Text: string;
+  if (useStreaming) {
+    pass2Text = await fetchStreamingWithTimeout(
+      config, optimizedImages, pass2Prompt,
+      (accumulated) => {
+        // Try to parse partial foods from the streaming response
+        try {
+          const partial = parsePartialFoods(accumulated);
+          if (partial.length > 0) {
+            onProgress({ phase: 'pass2-streaming', foodNames, partialFoods: partial, message: `${partial.length} aliment(s) quantifié(s)...` });
+          }
+        } catch { /* not enough data yet */ }
+      },
+      60000,
+    );
+  } else {
+    pass2Text = await fetchWithTimeout(() => callProvider(config, optimizedImages, pass2Prompt), 30000);
+  }
 
   const pass2Result = parsePass2Response(pass2Text);
 
@@ -632,6 +926,7 @@ export async function analyzeFoodMulti(
 
   // Deduplicate: merge entries with the same foodName (LLM may duplicate with multi-angle)
   // Hard cap to the number of foods identified in pass 1
+  onProgress?.({ phase: 'post-processing', foodNames, message: 'Finalisation...' });
   const deduped = deduplicateFoods(pass2Result, foodNames.length);
 
   // Post-correction: for foods where BDD was not found in pass 1, try OpenFoodFacts
@@ -642,11 +937,13 @@ export async function analyzeFoodMulti(
   }
 
   // Apply user correction learning patterns
+  let finalFoods = correctedFoods;
   if (userId) {
-    return applyCorrectionPatterns(correctedFoods, userId);
+    finalFoods = await applyCorrectionPatterns(correctedFoods, userId);
   }
 
-  return correctedFoods;
+  onProgress?.({ phase: 'done', foodNames, partialFoods: finalFoods, message: 'Analyse terminée' });
+  return finalFoods;
 }
 
 // Fallback: single-item analysis (used when pass 1 returns no foods)

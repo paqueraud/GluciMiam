@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Plus, StopCircle, Loader, Clock, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../stores/appStore';
@@ -7,7 +7,8 @@ import PhotoViewer from '../components/session/PhotoViewer';
 import FoodItemCard from '../components/session/FoodItemCard';
 import CameraCapture from '../components/camera/CameraCapture';
 import { analyzeFoodMulti, findCachedAnalysis } from '../services/llm';
-import type { ImageCacheEntry, LLMFoodEntry } from '../types';
+import { searchFoodMultiKeyword } from '../services/food';
+import type { ImageCacheEntry, LLMFoodEntry, AnalysisProgress } from '../types';
 
 interface SessionPageProps {
   onNavigate: (page: string) => void;
@@ -20,6 +21,8 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
   const [cacheHit, setCacheHit] = useState<{ entry: ImageCacheEntry; photos: string[]; userContext?: string } | null>(null);
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null);
+  const preloadedDbHintsRef = useRef<string | null>(null);
 
   const addResults = useCallback(async (results: LLMFoodEntry[], photoBase64: string, userContext?: string, fromCache = false) => {
     if (!activeSession?.id) return;
@@ -38,6 +41,18 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
       });
     }
   }, [activeSession, addFoodItem]);
+
+  const handleContextChange = useCallback(async (context: string) => {
+    if (!context.trim()) { preloadedDbHintsRef.current = null; return; }
+    try {
+      const matches = await searchFoodMultiKeyword(context);
+      if (matches.length > 0) {
+        preloadedDbHintsRef.current = matches.map((m) => `- ${m.name}: ${m.carbsPer100g}g/100g`).join('\n');
+      } else {
+        preloadedDbHintsRef.current = null;
+      }
+    } catch { preloadedDbHintsRef.current = null; }
+  }, []);
 
   const handleAddPhoto = useCallback(async (photos: string[], userContext?: string) => {
     if (!activeSession?.id || !currentUser) return;
@@ -58,10 +73,11 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
     if (!activeSession?.id || !currentUser) return;
     setAnalyzing(true);
     setLlmError(null);
+    setProgress(null);
 
     const photoBase64 = photos[0];
     try {
-      const results = await analyzeFoodMulti(photos, currentUser.fingerLengthMm, userContext, currentUser.id);
+      const results = await analyzeFoodMulti(photos, currentUser.fingerLengthMm, userContext, currentUser.id, (p) => setProgress(p));
       await addResults(results, photoBase64, userContext);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erreur inconnue';
@@ -80,6 +96,7 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
     }
 
     setAnalyzing(false);
+    setProgress(null);
   };
 
   const handleUseCachedResults = async () => {
@@ -130,6 +147,7 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
               <CameraCapture
                 onCapture={handleAddPhoto}
                 onCancel={() => setShowCamera(false)}
+                onContextChange={handleContextChange}
               />
             </motion.div>
           ) : (
@@ -206,7 +224,40 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
                       >
                         <Loader size={32} color="var(--accent-primary)" />
                       </motion.div>
-                      <p>Analyse du plat en cours...</p>
+                      <p>{progress?.message || 'Analyse du plat en cours...'}</p>
+                      {progress?.foodNames && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                          {progress.foodNames.map((name) => (
+                            <span key={name} style={{
+                              padding: '3px 10px',
+                              borderRadius: 'var(--radius-full)',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--accent-primary)',
+                              fontSize: 12,
+                              color: 'var(--accent-primary)',
+                              fontWeight: 600,
+                            }}>
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {progress?.partialFoods && progress.partialFoods.length > 0 && (
+                        <div className="glass" style={{ width: '100%', padding: 12, borderRadius: 'var(--radius-md)', marginTop: 8 }}>
+                          {progress.partialFoods.map((food, i) => (
+                            <div key={i} style={{
+                              display: 'flex', justifyContent: 'space-between', padding: '4px 0',
+                              fontSize: 13, color: 'var(--text-secondary)',
+                              borderBottom: i < progress.partialFoods!.length - 1 ? '1px solid var(--border-color)' : 'none',
+                            }}>
+                              <span>{food.foodName}</span>
+                              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                                {food.totalCarbsG.toFixed(1)}g
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -255,14 +306,35 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
         </AnimatePresence>
 
         {analyzing && !showCamera && sessionFoodItems.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 8 }}>
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
-            >
-              <Loader size={16} color="var(--accent-primary)" />
-            </motion.div>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Analyse en cours...</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
+              >
+                <Loader size={16} color="var(--accent-primary)" />
+              </motion.div>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                {progress?.message || 'Analyse en cours...'}
+              </span>
+            </div>
+            {progress?.foodNames && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+                {progress.foodNames.map((name) => (
+                  <span key={name} style={{
+                    padding: '2px 8px',
+                    borderRadius: 'var(--radius-full)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--accent-primary)',
+                    fontSize: 11,
+                    color: 'var(--accent-primary)',
+                    fontWeight: 600,
+                  }}>
+                    {name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

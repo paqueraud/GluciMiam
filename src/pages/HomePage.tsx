@@ -5,8 +5,9 @@ import { useAppStore } from '../stores/appStore';
 import CameraCapture from '../components/camera/CameraCapture';
 import UserSelector from '../components/user/UserSelector';
 import { analyzeFoodMulti, findCachedAnalysis } from '../services/llm';
+import { searchFoodMultiKeyword } from '../services/food';
 import { db } from '../db';
-import type { ImageCacheEntry, LLMFoodEntry } from '../types';
+import type { ImageCacheEntry, LLMFoodEntry, AnalysisProgress } from '../types';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
@@ -27,6 +28,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cacheHit, setCacheHit] = useState<{ entry: ImageCacheEntry; photos: string[]; userContext?: string } | null>(null);
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null);
+  const preloadedDbHintsRef = useRef<string | null>(null);
   const isCreatingSession = useRef(false);
 
   useEffect(() => {
@@ -65,6 +68,18 @@ export default function HomePage({ onNavigate }: HomePageProps) {
       setStep('camera');
     }
   };
+
+  const handleContextChange = useCallback(async (context: string) => {
+    if (!context.trim()) { preloadedDbHintsRef.current = null; return; }
+    try {
+      const matches = await searchFoodMultiKeyword(context);
+      if (matches.length > 0) {
+        preloadedDbHintsRef.current = matches.map((m) => `- ${m.name}: ${m.carbsPer100g}g/100g`).join('\n');
+      } else {
+        preloadedDbHintsRef.current = null;
+      }
+    } catch { preloadedDbHintsRef.current = null; }
+  }, []);
 
   const handlePhotoCapture = useCallback(async (photos: string[], userContext?: string) => {
     const user = useAppStore.getState().currentUser;
@@ -141,7 +156,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
   const processAndAddFoodItems = async (photos: string[], fingerLengthMm: number, userId: number, sessionId: number, userContext?: string) => {
     const photoBase64 = photos[0];
     try {
-      const results = await analyzeFoodMulti(photos, fingerLengthMm, userContext, userId);
+      const results = await analyzeFoodMulti(photos, fingerLengthMm, userContext, userId, (p) => setProgress(p));
       const { addFoodItem } = useAppStore.getState();
       for (const result of results) {
         await addFoodItem({
@@ -287,6 +302,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             <CameraCapture
               onCapture={handlePhotoCapture}
               onCancel={() => setStep('idle')}
+              onContextChange={handleContextChange}
             />
           </motion.div>
         )}
@@ -356,7 +372,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, maxWidth: 360, width: '100%' }}
           >
             <motion.div
               animate={{ rotate: 360 }}
@@ -364,7 +380,42 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             >
               <Loader size={40} color="var(--accent-primary)" />
             </motion.div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Analyse en cours...</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+              {progress?.message || 'Analyse en cours...'}
+            </p>
+            {progress?.foodNames && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                {progress.foodNames.map((name) => (
+                  <span key={name} style={{
+                    padding: '3px 10px',
+                    borderRadius: 'var(--radius-full)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--accent-primary)',
+                    fontSize: 12,
+                    color: 'var(--accent-primary)',
+                    fontWeight: 600,
+                  }}>
+                    {name}
+                  </span>
+                ))}
+              </div>
+            )}
+            {progress?.partialFoods && progress.partialFoods.length > 0 && (
+              <div className="glass" style={{ width: '100%', padding: 12, borderRadius: 'var(--radius-md)' }}>
+                {progress.partialFoods.map((food, i) => (
+                  <div key={i} style={{
+                    display: 'flex', justifyContent: 'space-between', padding: '4px 0',
+                    fontSize: 13, color: 'var(--text-secondary)',
+                    borderBottom: i < progress.partialFoods!.length - 1 ? '1px solid var(--border-color)' : 'none',
+                  }}>
+                    <span>{food.foodName}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                      {food.totalCarbsG.toFixed(1)}g
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -118,6 +118,17 @@ export interface ImageCacheEntry {
   userContext?: string;
 }
 
+// ===== Analysis Progress Types =====
+
+export interface AnalysisProgress {
+  phase: 'optimizing' | 'pass1' | 'pass1-done' | 'bdd-lookup' | 'pass2' | 'pass2-streaming' | 'post-processing' | 'done';
+  foodNames?: string[];
+  partialFoods?: LLMFoodEntry[];
+  message?: string;
+}
+
+export type OnProgress = (progress: AnalysisProgress) => void;
+
 // ===== Export/Import Types =====
 
 export interface ExportData {

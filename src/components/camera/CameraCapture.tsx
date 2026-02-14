@@ -6,9 +6,10 @@ import { openCamera, capturePhoto, stopCamera, fileToBase64 } from '../../servic
 interface CameraCaptureProps {
   onCapture: (photos: string[], context?: string) => void;
   onCancel?: () => void;
+  onContextChange?: (context: string) => void;
 }
 
-export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProps) {
+export default function CameraCapture({ onCapture, onCancel, onContextChange }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -25,6 +26,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoFramesRef = useRef<string[]>([]);
+  const contextDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Preview = we have at least 1 photo and we're NOT in the middle of capturing a 2nd angle
   const hasPreview = photos.length > 0 && !capturingSecondAngle;
@@ -35,6 +37,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
     return () => {
       if (streamRef.current) stopCamera(streamRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
+      if (contextDebounceRef.current) clearTimeout(contextDebounceRef.current);
     };
   }, []);
 
@@ -372,7 +375,14 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           <input
             className="input"
             value={userContext}
-            onChange={(e) => setUserContext(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setUserContext(val);
+              if (onContextChange) {
+                if (contextDebounceRef.current) clearTimeout(contextDebounceRef.current);
+                contextDebounceRef.current = setTimeout(() => onContextChange(val), 300);
+              }
+            }}
             placeholder="Ex: pâtes carbonara, environ 200g, sauce à part..."
             style={{ fontSize: 13 }}
           />
