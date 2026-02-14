@@ -1,4 +1,4 @@
-import type { LLMConfig, LLMAnalysisResult, LLMProvider } from '../../types';
+import type { LLMConfig, LLMAnalysisResult, LLMProvider, LLMFoodEntry } from '../../types';
 import { db } from '../../db';
 import { searchFoodMultiKeyword, searchFoodOnline } from '../food';
 import { optimizeImageForLLM } from '../camera';
@@ -17,6 +17,8 @@ const DEFAULT_MODELS: Record<LLMProvider, string> = {
   perplexity: 'sonar-pro',
 };
 
+// ─── Meal time context ─────────────────────────────────────────────
+
 function getMealTimeContext(): string {
   const hour = new Date().getHours();
   if (hour >= 6 && hour < 10) return 'petit-déjeuner (matin)';
@@ -27,12 +29,65 @@ function getMealTimeContext(): string {
   return 'collation nocturne';
 }
 
-function buildPrompt(fingerLengthMm: number, userContext?: string, dbHints?: string): string {
+// ─── Prompts for 2-pass analysis ────────────────────────────────────
+
+function buildPass1Prompt(fingerLengthMm: number, imageCount: number, userContext?: string): string {
+  const mealTime = getMealTimeContext();
+  const multiAngle = imageCount > 1
+    ? `\n${imageCount} photos sous des angles différents sont fournies pour une meilleure estimation des volumes.`
+    : '';
+  const contextLine = userContext
+    ? `\nL'utilisateur a identifié ce plat comme : "${userContext}".`
+    : '';
+
+  return `Tu es un expert en nutrition. Identifie TOUS les aliments visibles dans cette photo de plat/repas.
+Un index de ${fingerLengthMm}mm est visible comme étalon de taille.
+Ce repas est pris au moment du ${mealTime}.${multiAngle}${contextLine}
+Réponds UNIQUEMENT en JSON valide:
+{"foods":["nom aliment 1 en français","nom aliment 2 en français",...]}`;
+}
+
+function buildPass2Prompt(
+  fingerLengthMm: number,
+  imageCount: number,
+  foodsWithCarbs: { name: string; carbsPer100g: number | null }[],
+  userContext?: string,
+): string {
+  const mealTime = getMealTimeContext();
+  const multiAngle = imageCount > 1
+    ? `\n${imageCount} photos sous des angles différents sont fournies. Utilise les différentes perspectives pour mieux estimer les volumes et poids.`
+    : '';
+  const contextLine = userContext
+    ? `\nL'utilisateur a identifié ce plat comme : "${userContext}". Utilise cette information en priorité.\n`
+    : '';
+
+  const carbsLines = foodsWithCarbs.map((f) => {
+    if (f.carbsPer100g !== null) {
+      return `- ${f.name} : ${f.carbsPer100g}g glucides/100g (BDD locale, utiliser cette valeur)`;
+    }
+    return `- ${f.name} : glucides/100g inconnus, estime toi-même`;
+  }).join('\n');
+
+  return `Tu es un expert en nutrition pour diabétiques. Estime le poids et les glucides de chaque aliment dans cette photo.
+Un index de ${fingerLengthMm}mm est visible comme étalon de taille.
+Ce repas est pris au moment du ${mealTime}.${multiAngle}${contextLine}
+DONNÉES NUTRITIONNELLES :
+${carbsLines}
+
+Pour les aliments dont les glucides/100g sont fournis par la BDD locale, utilise EXACTEMENT ces valeurs.
+Calcule totalCarbsG = estimatedWeightG * carbsPer100g / 100.
+
+Réponds UNIQUEMENT en JSON valide:
+{"foods":[{"foodName":"nom en français","estimatedWeightG":poids_grammes,"carbsPer100g":glucides_pour_100g,"totalCarbsG":total_glucides,"confidence":0.0_a_1.0,"reasoning":"explication courte"}]}
+Si impossible: {"error":"raison","needsRetake":true}`;
+}
+
+// Legacy single-food prompt (fallback)
+function buildSinglePrompt(fingerLengthMm: number, userContext?: string, dbHints?: string): string {
   const mealTime = getMealTimeContext();
   const contextLine = userContext
     ? `\nIMPORTANT - L'utilisateur a identifié ce plat comme : "${userContext}". Utilise cette information en priorité pour identifier l'aliment.\n`
     : '';
-
   const dbLine = dbHints
     ? `\nDONNÉES DE RÉFÉRENCE (base de données locale, à utiliser EN PRIORITÉ pour carbsPer100g) :\n${dbHints}\nUtilise ces valeurs de glucides/100g au lieu de tes propres estimations si un aliment correspond.\n`
     : '';
@@ -45,9 +100,20 @@ Réponds UNIQUEMENT en JSON valide:
 Si impossible: {"error":"raison","needsRetake":true}`;
 }
 
-async function callClaude(config: LLMConfig, imageBase64: string, prompt: string): Promise<string> {
+// ─── LLM Provider calls (multi-image) ──────────────────────────────
+
+async function callClaude(config: LLMConfig, images: string[], prompt: string): Promise<string> {
   const model = config.model || DEFAULT_MODELS.claude;
-  const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const content: any[] = images.map((img) => {
+    const base64Data = img.includes(',') ? img.split(',')[1] : img;
+    return {
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: base64Data },
+    };
+  });
+  content.push({ type: 'text', text: prompt });
 
   const response = await fetch(PROVIDER_URLS.claude, {
     method: 'POST',
@@ -57,40 +123,26 @@ async function callClaude(config: LLMConfig, imageBase64: string, prompt: string
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
-    body: JSON.stringify({
-      model,
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/jpeg',
-                data: base64Data,
-              },
-            },
-            { type: 'text', text: prompt },
-          ],
-        },
-      ],
-    }),
+    body: JSON.stringify({ model, max_tokens: 2048, messages: [{ role: 'user', content }] }),
   });
 
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`Claude API erreur ${response.status}: ${err}`);
   }
-
   const data = await response.json();
   return data.content[0].text;
 }
 
-async function callChatGPT(config: LLMConfig, imageBase64: string, prompt: string): Promise<string> {
+async function callChatGPT(config: LLMConfig, images: string[], prompt: string): Promise<string> {
   const model = config.model || DEFAULT_MODELS.chatgpt;
-  const base64Data = imageBase64.includes(',') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const content: any[] = [{ type: 'text', text: prompt }];
+  for (const img of images) {
+    const dataUrl = img.includes(',') ? img : `data:image/jpeg;base64,${img}`;
+    content.push({ type: 'image_url', image_url: { url: dataUrl } });
+  }
 
   const response = await fetch(PROVIDER_URLS.chatgpt, {
     method: 'POST',
@@ -98,53 +150,34 @@ async function callChatGPT(config: LLMConfig, imageBase64: string, prompt: strin
       'Content-Type': 'application/json',
       Authorization: `Bearer ${config.apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: base64Data } },
-          ],
-        },
-      ],
-      max_tokens: 1024,
-    }),
+    body: JSON.stringify({ model, messages: [{ role: 'user', content }], max_tokens: 2048 }),
   });
 
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`ChatGPT API erreur ${response.status}: ${err}`);
   }
-
   const data = await response.json();
   return data.choices[0].message.content;
 }
 
-async function callGemini(config: LLMConfig, imageBase64: string, prompt: string): Promise<string> {
+async function callGemini(config: LLMConfig, images: string[], prompt: string): Promise<string> {
   const model = config.model || DEFAULT_MODELS.gemini;
-  const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-
   const url = `${PROVIDER_URLS.gemini}/${model}:generateContent?key=${config.apiKey}`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parts: any[] = [{ text: prompt }];
+  for (const img of images) {
+    const base64Data = img.includes(',') ? img.split(',')[1] : img;
+    parts.push({ inline_data: { mime_type: 'image/jpeg', data: base64Data } });
+  }
 
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 4096,
-        responseMimeType: 'application/json',
-      },
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 4096, responseMimeType: 'application/json' },
     }),
   });
 
@@ -154,30 +187,23 @@ async function callGemini(config: LLMConfig, imageBase64: string, prompt: string
   }
 
   const data = await response.json();
-
   if (!data.candidates || data.candidates.length === 0) {
     const blockReason = data.promptFeedback?.blockReason;
     throw new Error(`Gemini: aucune réponse générée.${blockReason ? ` Raison: ${blockReason}` : ''} Vérifiez votre clé API et le modèle choisi.`);
   }
 
   const candidate = data.candidates[0];
-
-  // Check finish reason for truncation
   if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'END_TURN') {
     console.warn(`Gemini finishReason: ${candidate.finishReason}`);
   }
 
-  // Concatenate ALL parts from the response
-  const fullText = candidate.content.parts
+  return candidate.content.parts
     .map((p: { text?: string }) => p.text || '')
     .join('');
-
-  return fullText;
 }
 
-async function callPerplexity(config: LLMConfig, _imageBase64: string, prompt: string): Promise<string> {
+async function callPerplexity(config: LLMConfig, _images: string[], prompt: string): Promise<string> {
   const model = config.model || DEFAULT_MODELS.perplexity;
-
   const response = await fetch(PROVIDER_URLS.perplexity, {
     method: 'POST',
     headers: {
@@ -187,7 +213,7 @@ async function callPerplexity(config: LLMConfig, _imageBase64: string, prompt: s
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt + '\n\n(Note: image analysis non disponible via cette API, décris les aliments mentionnés)' }],
-      max_tokens: 1024,
+      max_tokens: 2048,
     }),
   });
 
@@ -195,17 +221,28 @@ async function callPerplexity(config: LLMConfig, _imageBase64: string, prompt: s
     const err = await response.text();
     throw new Error(`Perplexity API erreur ${response.status}: ${err}`);
   }
-
   const data = await response.json();
   return data.choices[0].message.content;
 }
 
+// ─── Generic caller ─────────────────────────────────────────────────
+
+function callProvider(config: LLMConfig, images: string[], prompt: string): Promise<string> {
+  switch (config.provider) {
+    case 'claude': return callClaude(config, images, prompt);
+    case 'chatgpt': return callChatGPT(config, images, prompt);
+    case 'gemini': return callGemini(config, images, prompt);
+    case 'perplexity': return callPerplexity(config, images, prompt);
+    default: throw new Error(`Provider non supporté: ${config.provider}`);
+  }
+}
+
+// ─── JSON extraction / parsing ──────────────────────────────────────
+
 function extractJSON(text: string): string {
-  // Try markdown code block first
   const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlock) return codeBlock[1].trim();
 
-  // Find JSON by matching balanced braces
   const start = text.indexOf('{');
   if (start === -1) throw new Error(`Pas de JSON trouvé dans: ${text.substring(0, 300)}`);
 
@@ -220,33 +257,20 @@ function extractJSON(text: string): string {
     if (ch === '"') { inString = !inString; continue; }
     if (inString) continue;
     if (ch === '{') depth++;
-    if (ch === '}') {
-      depth--;
-      if (depth === 0) return text.substring(start, i + 1);
-    }
+    if (ch === '}') { depth--; if (depth === 0) return text.substring(start, i + 1); }
   }
 
-  // JSON is truncated - try multiple repair strategies
   const partial = text.substring(start);
-
-  // Strategy 1-4: try various closings
-  const closings = ['}', '"}', '0}', '0.5}', '""}'];
+  const closings = ['}', '"}', '0}', '0.5}', '""}', ']}', '"]}', '0]}', '}]}', '""}]}'];
   for (const closing of closings) {
-    try {
-      const repaired = partial + closing;
-      JSON.parse(repaired);
-      return repaired;
-    } catch { /* continue */ }
+    try { const repaired = partial + closing; JSON.parse(repaired); return repaired; } catch { /* continue */ }
   }
-
-  // Strategy 5: extract fields individually from truncated JSON
   return partial;
 }
 
 function extractFieldString(text: string, key: string): string | undefined {
   const regex = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'i');
-  const match = text.match(regex);
-  return match?.[1];
+  return text.match(regex)?.[1];
 }
 
 function extractFieldNumber(text: string, key: string): number | undefined {
@@ -263,13 +287,10 @@ function repairTruncatedJSON(text: string): LLMAnalysisResult | null {
   const confidence = extractFieldNumber(text, 'confidence');
   const reasoning = extractFieldString(text, 'reasoning');
 
-  // We need at minimum foodName to consider it valid
   if (!foodName) return null;
 
-  // Calculate totalCarbsG from parts if missing
   const computedTotal = totalCarbsG ??
     (estimatedWeightG && carbsPer100g ? Math.round((estimatedWeightG * carbsPer100g / 100) * 10) / 10 : undefined);
-
   if (computedTotal === undefined) return null;
 
   return {
@@ -282,31 +303,66 @@ function repairTruncatedJSON(text: string): LLMAnalysisResult | null {
   };
 }
 
-function parseResponse(text: string): LLMAnalysisResult | { error: string; needsRetake: boolean } {
+// Parse pass 1 response: extract food names list
+function parsePass1Response(text: string): string[] {
   const jsonStr = extractJSON(text);
-
-  // Try direct parse first
   try {
-    return JSON.parse(jsonStr);
+    const parsed = JSON.parse(jsonStr);
+    if (Array.isArray(parsed.foods)) return parsed.foods.filter((f: unknown) => typeof f === 'string' && f.trim());
+    if (Array.isArray(parsed)) return parsed.filter((f: unknown) => typeof f === 'string' && f.trim());
+  } catch { /* continue */ }
+
+  // Fallback: try to extract food names from text
+  const foods: string[] = [];
+  const matches = jsonStr.matchAll(/"([^"]{2,60})"/g);
+  for (const m of matches) {
+    if (!['foods', 'error', 'needsRetake'].includes(m[1])) foods.push(m[1]);
+  }
+  return foods;
+}
+
+// Parse pass 2 response: extract array of LLMFoodEntry
+function parsePass2Response(text: string): LLMFoodEntry[] | { error: string; needsRetake: boolean } {
+  const jsonStr = extractJSON(text);
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if ('error' in parsed) return parsed as { error: string; needsRetake: boolean };
+    const foods = Array.isArray(parsed.foods) ? parsed.foods : Array.isArray(parsed) ? parsed : [parsed];
+    return foods.map((f: LLMFoodEntry) => ({
+      foodName: f.foodName || 'Inconnu',
+      estimatedWeightG: f.estimatedWeightG || 0,
+      carbsPer100g: f.carbsPer100g || 0,
+      totalCarbsG: f.totalCarbsG || Math.round((f.estimatedWeightG * f.carbsPer100g / 100) * 10) / 10 || 0,
+      confidence: f.confidence ?? 0.5,
+      reasoning: f.reasoning,
+    }));
   } catch {
-    // JSON is invalid/truncated - try field-by-field repair
+    // Try single-item repair
+    const repaired = repairTruncatedJSON(jsonStr);
+    if (repaired) return [repaired];
+    throw new Error(`JSON incomplet: ${jsonStr.substring(0, 200)}... Réessayez.`);
+  }
+}
+
+// Legacy single-item parser
+function parseSingleResponse(text: string): LLMAnalysisResult | { error: string; needsRetake: boolean } {
+  const jsonStr = extractJSON(text);
+  try { return JSON.parse(jsonStr); } catch {
     const repaired = repairTruncatedJSON(jsonStr);
     if (repaired) return repaired;
     throw new Error(`JSON incomplet: ${jsonStr.substring(0, 200)}... Réessayez.`);
   }
 }
 
+// ─── Food DB helpers ────────────────────────────────────────────────
+
 async function getActiveConfig(): Promise<LLMConfig> {
-  // Try both boolean true and number 1 for Dexie compatibility
   let config = await db.llmConfigs.where('isActive').equals(1).first();
   if (!config) {
-    // Fallback: get last config added
     const all = await db.llmConfigs.toArray();
     config = all.find((c) => c.isActive) || all[all.length - 1];
   }
-  if (!config) {
-    throw new Error('Aucun LLM configuré. Allez dans le menu > Configuration LLM.');
-  }
+  if (!config) throw new Error('Aucun LLM configuré. Allez dans le menu > Configuration LLM.');
   return config;
 }
 
@@ -323,23 +379,32 @@ async function lookupFoodDB(userContext?: string): Promise<string> {
   if (!userContext) return '';
   try {
     const matches = await searchFoodMultiKeyword(userContext);
-    if (matches.length > 0) {
-      return matches
-        .map((m) => `- ${m.name}: ${m.carbsPer100g}g glucides/100g`)
-        .join('\n');
-    }
+    if (matches.length > 0) return matches.map((m) => `- ${m.name}: ${m.carbsPer100g}g glucides/100g`).join('\n');
   } catch { /* silent */ }
   return '';
 }
 
+async function lookupFoodCarbsForNames(foodNames: string[]): Promise<{ name: string; carbsPer100g: number | null }[]> {
+  const results: { name: string; carbsPer100g: number | null }[] = [];
+  for (const name of foodNames) {
+    try {
+      const matches = await searchFoodMultiKeyword(name);
+      if (matches.length > 0) {
+        results.push({ name, carbsPer100g: matches[0].carbsPer100g });
+        continue;
+      }
+    } catch { /* continue */ }
+    results.push({ name, carbsPer100g: null });
+  }
+  return results;
+}
+
 async function correctWithFoodDB(result: LLMAnalysisResult): Promise<LLMAnalysisResult> {
   try {
-    // Search local DB with the detected food name
     const matches = await searchFoodMultiKeyword(result.foodName);
     if (matches.length > 0) {
       const bestMatch = matches[0];
       const dbCarbs = bestMatch.carbsPer100g;
-      // If the LLM's carbsPer100g differs significantly from DB, use DB value
       if (Math.abs(result.carbsPer100g - dbCarbs) > 2) {
         const correctedTotal = Math.round((result.estimatedWeightG * dbCarbs / 100) * 10) / 10;
         return {
@@ -350,7 +415,6 @@ async function correctWithFoodDB(result: LLMAnalysisResult): Promise<LLMAnalysis
         };
       }
     }
-    // Try OpenFoodFacts as fallback
     const onlineMatch = await searchFoodOnline(result.foodName);
     if (onlineMatch && Math.abs(result.carbsPer100g - onlineMatch.carbsPer100g) > 5) {
       const correctedTotal = Math.round((result.estimatedWeightG * onlineMatch.carbsPer100g / 100) * 10) / 10;
@@ -361,58 +425,99 @@ async function correctWithFoodDB(result: LLMAnalysisResult): Promise<LLMAnalysis
         reasoning: `${result.reasoning} [Corrigé via OpenFoodFacts: ${onlineMatch.name} = ${onlineMatch.carbsPer100g}g/100g]`,
       };
     }
-  } catch { /* silent, return original */ }
+  } catch { /* silent */ }
   return result;
 }
+
+// ─── Main analysis: 2-pass multi-food ───────────────────────────────
+
+export async function analyzeFoodMulti(
+  images: string[],
+  fingerLengthMm: number,
+  userContext?: string,
+): Promise<LLMFoodEntry[]> {
+  const config = await getActiveConfig();
+
+  // Optimize all images
+  const optimizedImages = await Promise.all(images.map((img) => optimizeImageForLLM(img)));
+
+  // ── PASS 1: Identify foods ──
+  const pass1Prompt = buildPass1Prompt(fingerLengthMm, optimizedImages.length, userContext);
+  const pass1Text = await fetchWithTimeout(
+    () => callProvider(config, optimizedImages, pass1Prompt),
+    30000,
+  );
+
+  const foodNames = parsePass1Response(pass1Text);
+
+  // If pass 1 returned nothing useful, fall back to single-item analysis
+  if (foodNames.length === 0) {
+    return fallbackSingleAnalysis(config, optimizedImages, fingerLengthMm, userContext);
+  }
+
+  // ── BDD lookup between passes ──
+  const foodsWithCarbs = await lookupFoodCarbsForNames(foodNames);
+
+  // ── PASS 2: Quantify with known carbs ──
+  const pass2Prompt = buildPass2Prompt(fingerLengthMm, optimizedImages.length, foodsWithCarbs, userContext);
+  const pass2Text = await fetchWithTimeout(
+    () => callProvider(config, optimizedImages, pass2Prompt),
+    30000,
+  );
+
+  const pass2Result = parsePass2Response(pass2Text);
+
+  if ('error' in pass2Result) {
+    throw new Error(pass2Result.error);
+  }
+
+  // Post-correction: for foods where BDD was not found in pass 1, try OpenFoodFacts
+  const correctedFoods: LLMFoodEntry[] = [];
+  for (const food of pass2Result) {
+    const corrected = await correctWithFoodDB(food);
+    correctedFoods.push(corrected);
+  }
+
+  return correctedFoods;
+}
+
+// Fallback: single-item analysis (used when pass 1 returns no foods)
+async function fallbackSingleAnalysis(
+  config: LLMConfig,
+  images: string[],
+  fingerLengthMm: number,
+  userContext?: string,
+): Promise<LLMFoodEntry[]> {
+  const dbHints = await lookupFoodDB(userContext);
+  const prompt = buildSinglePrompt(fingerLengthMm, userContext, dbHints || undefined);
+  const responseText = await fetchWithTimeout(
+    () => callProvider(config, images, prompt),
+    30000,
+  );
+  const result = parseSingleResponse(responseText);
+  if ('error' in result) throw new Error(result.error);
+  const corrected = await correctWithFoodDB(result as LLMAnalysisResult);
+  return [corrected];
+}
+
+// ─── Legacy wrapper (single image, single result) ───────────────────
 
 export async function analyzeFood(
   imageBase64: string,
   fingerLengthMm: number,
-  userContext?: string
+  userContext?: string,
 ): Promise<LLMAnalysisResult> {
-  const config = await getActiveConfig();
-
-  // Optimize image: resize to 1024px max + auto-levels contrast correction
-  const optimizedImage = await optimizeImageForLLM(imageBase64);
-
-  // Search food DB to include hints in prompt
-  const dbHints = await lookupFoodDB(userContext);
-  const prompt = buildPrompt(fingerLengthMm, userContext, dbHints || undefined);
-
-  const callLLM = () => {
-    switch (config.provider) {
-      case 'claude':
-        return callClaude(config, optimizedImage, prompt);
-      case 'chatgpt':
-        return callChatGPT(config, optimizedImage, prompt);
-      case 'gemini':
-        return callGemini(config, optimizedImage, prompt);
-      case 'perplexity':
-        return callPerplexity(config, optimizedImage, prompt);
-      default:
-        throw new Error(`Provider non supporté: ${config.provider}`);
-    }
-  };
-
-  const responseText = await fetchWithTimeout(callLLM, 30000);
-
-  const result = parseResponse(responseText);
-
-  if ('error' in result) {
-    throw new Error(result.error);
-  }
-
-  // Correct carbsPer100g using food database
-  const corrected = await correctWithFoodDB(result as LLMAnalysisResult);
-  return corrected;
+  const results = await analyzeFoodMulti([imageBase64], fingerLengthMm, userContext);
+  return results[0];
 }
+
+// ─── Test / Config ──────────────────────────────────────────────────
 
 export async function testLLMConnection(): Promise<{ success: boolean; message: string; provider: string; model: string }> {
   try {
     const config = await getActiveConfig();
     const model = config.model || DEFAULT_MODELS[config.provider];
 
-    // Simple text-only test
     let testOk = false;
     let responseInfo = '';
 
@@ -426,10 +531,7 @@ export async function testLLMConnection(): Promise<{ success: boolean; message: 
           generationConfig: { maxOutputTokens: 10 },
         }),
       });
-      if (!response.ok) {
-        const err = await response.text();
-        return { success: false, message: `Erreur ${response.status}: ${err}`, provider: config.provider, model };
-      }
+      if (!response.ok) { const err = await response.text(); return { success: false, message: `Erreur ${response.status}: ${err}`, provider: config.provider, model }; }
       const data = await response.json();
       responseInfo = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Réponse vide';
       testOk = true;
@@ -442,36 +544,19 @@ export async function testLLMConnection(): Promise<{ success: boolean; message: 
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        body: JSON.stringify({
-          model,
-          max_tokens: 10,
-          messages: [{ role: 'user', content: 'Réponds uniquement "OK".' }],
-        }),
+        body: JSON.stringify({ model, max_tokens: 10, messages: [{ role: 'user', content: 'Réponds uniquement "OK".' }] }),
       });
-      if (!response.ok) {
-        const err = await response.text();
-        return { success: false, message: `Erreur ${response.status}: ${err}`, provider: config.provider, model };
-      }
+      if (!response.ok) { const err = await response.text(); return { success: false, message: `Erreur ${response.status}: ${err}`, provider: config.provider, model }; }
       const data = await response.json();
       responseInfo = data.content?.[0]?.text || 'Réponse vide';
       testOk = true;
     } else if (config.provider === 'chatgpt') {
       const response = await fetch(PROVIDER_URLS.chatgpt, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: 'Réponds uniquement "OK".' }],
-          max_tokens: 10,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Réponds uniquement "OK".' }], max_tokens: 10 }),
       });
-      if (!response.ok) {
-        const err = await response.text();
-        return { success: false, message: `Erreur ${response.status}: ${err}`, provider: config.provider, model };
-      }
+      if (!response.ok) { const err = await response.text(); return { success: false, message: `Erreur ${response.status}: ${err}`, provider: config.provider, model }; }
       const data = await response.json();
       responseInfo = data.choices?.[0]?.message?.content || 'Réponse vide';
       testOk = true;
@@ -479,35 +564,17 @@ export async function testLLMConnection(): Promise<{ success: boolean; message: 
       return { success: false, message: 'Test non supporté pour ce provider', provider: config.provider, model };
     }
 
-    return {
-      success: testOk,
-      message: `Connexion OK ! Réponse: "${responseInfo.trim()}"`,
-      provider: config.provider,
-      model,
-    };
+    return { success: testOk, message: `Connexion OK ! Réponse: "${responseInfo.trim()}"`, provider: config.provider, model };
   } catch (err) {
-    return {
-      success: false,
-      message: err instanceof Error ? err.message : 'Erreur inconnue',
-      provider: 'inconnu',
-      model: 'inconnu',
-    };
+    return { success: false, message: err instanceof Error ? err.message : 'Erreur inconnue', provider: 'inconnu', model: 'inconnu' };
   }
 }
 
 export async function saveLLMConfig(config: Omit<LLMConfig, 'id'>): Promise<void> {
-  // Deactivate all existing configs
   await db.llmConfigs.toCollection().modify({ isActive: false });
-
-  // Check if a config for this provider already exists
   const existing = await db.llmConfigs.where('provider').equals(config.provider).first();
-
   if (existing) {
-    await db.llmConfigs.update(existing.id!, {
-      apiKey: config.apiKey,
-      model: config.model,
-      isActive: true,
-    });
+    await db.llmConfigs.update(existing.id!, { apiKey: config.apiKey, model: config.model, isActive: true });
   } else {
     await db.llmConfigs.add(config as LLMConfig);
   }

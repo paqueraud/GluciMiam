@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../stores/appStore';
 import CameraCapture from '../components/camera/CameraCapture';
 import UserSelector from '../components/user/UserSelector';
-import { analyzeFood } from '../services/llm';
+import { analyzeFoodMulti } from '../services/llm';
 import { db } from '../db';
 
 interface HomePageProps {
@@ -64,7 +64,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     }
   };
 
-  const handlePhotoCapture = useCallback(async (photoBase64: string, userContext?: string) => {
+  const handlePhotoCapture = useCallback(async (photos: string[], userContext?: string) => {
     const user = useAppStore.getState().currentUser;
     if (!user) return;
 
@@ -73,28 +73,31 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     isCreatingSession.current = true;
 
     const session = await startSession(user.id!);
-    await processAndAddFoodItem(photoBase64, user.fingerLengthMm, session.id!, userContext);
+    await processAndAddFoodItems(photos, user.fingerLengthMm, session.id!, userContext);
 
     isCreatingSession.current = false;
     onNavigate('session');
   }, [startSession, onNavigate]);
 
-  const processAndAddFoodItem = async (photoBase64: string, fingerLengthMm: number, sessionId: number, userContext?: string) => {
+  const processAndAddFoodItems = async (photos: string[], fingerLengthMm: number, sessionId: number, userContext?: string) => {
+    const photoBase64 = photos[0]; // primary photo for storage
     try {
-      const result = await analyzeFood(photoBase64, fingerLengthMm, userContext);
+      const results = await analyzeFoodMulti(photos, fingerLengthMm, userContext);
       const { addFoodItem } = useAppStore.getState();
-      await addFoodItem({
-        sessionId,
-        photoBase64,
-        photoTimestamp: new Date(),
-        userContext,
-        detectedFoodName: result.foodName,
-        estimatedWeightG: result.estimatedWeightG,
-        estimatedCarbsG: result.totalCarbsG,
-        carbsPer100g: result.carbsPer100g,
-        llmResponse: result.reasoning,
-        confidence: result.confidence,
-      });
+      for (const result of results) {
+        await addFoodItem({
+          sessionId,
+          photoBase64,
+          photoTimestamp: new Date(),
+          userContext,
+          detectedFoodName: result.foodName,
+          estimatedWeightG: result.estimatedWeightG,
+          estimatedCarbsG: result.totalCarbsG,
+          carbsPer100g: result.carbsPer100g,
+          llmResponse: result.reasoning,
+          confidence: result.confidence,
+        });
+      }
     } catch (err) {
       const { addFoodItem } = useAppStore.getState();
       await addFoodItem({

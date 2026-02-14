@@ -6,7 +6,7 @@ import Header from '../components/layout/Header';
 import PhotoViewer from '../components/session/PhotoViewer';
 import FoodItemCard from '../components/session/FoodItemCard';
 import CameraCapture from '../components/camera/CameraCapture';
-import { analyzeFood } from '../services/llm';
+import { analyzeFoodMulti } from '../services/llm';
 
 interface SessionPageProps {
   onNavigate: (page: string) => void;
@@ -19,26 +19,29 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
 
-  const handleAddPhoto = useCallback(async (photoBase64: string, userContext?: string) => {
+  const handleAddPhoto = useCallback(async (photos: string[], userContext?: string) => {
     if (!activeSession?.id || !currentUser) return;
     setShowCamera(false);
     setAnalyzing(true);
     setLlmError(null);
 
+    const photoBase64 = photos[0]; // primary photo for storage
     try {
-      const result = await analyzeFood(photoBase64, currentUser.fingerLengthMm, userContext);
-      await addFoodItem({
-        sessionId: activeSession.id,
-        photoBase64,
-        photoTimestamp: new Date(),
-        userContext,
-        detectedFoodName: result.foodName,
-        estimatedWeightG: result.estimatedWeightG,
-        estimatedCarbsG: result.totalCarbsG,
-        carbsPer100g: result.carbsPer100g,
-        llmResponse: result.reasoning,
-        confidence: result.confidence,
-      });
+      const results = await analyzeFoodMulti(photos, currentUser.fingerLengthMm, userContext);
+      for (const result of results) {
+        await addFoodItem({
+          sessionId: activeSession.id,
+          photoBase64,
+          photoTimestamp: new Date(),
+          userContext,
+          detectedFoodName: result.foodName,
+          estimatedWeightG: result.estimatedWeightG,
+          estimatedCarbsG: result.totalCarbsG,
+          carbsPer100g: result.carbsPer100g,
+          llmResponse: result.reasoning,
+          confidence: result.confidence,
+        });
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erreur inconnue';
       setLlmError(errorMsg);

@@ -84,7 +84,7 @@ export interface LLMConfig {
   isActive: boolean;
 }
 
-export interface LLMAnalysisResult {
+export interface LLMFoodEntry {
   foodName: string;
   estimatedWeightG: number;
   carbsPer100g: number;
@@ -92,6 +92,9 @@ export interface LLMAnalysisResult {
   confidence: number;
   reasoning?: string;
 }
+
+// Alias for backward compatibility
+export type LLMAnalysisResult = LLMFoodEntry;
 
 // ===== Export/Import Types =====
 

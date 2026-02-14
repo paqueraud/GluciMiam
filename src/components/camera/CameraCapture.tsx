@@ -1,10 +1,10 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { Camera, RotateCcw, Check, ImagePlus, Video, StopCircle } from 'lucide-react';
+import { Camera, RotateCcw, Check, ImagePlus, Video, StopCircle, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { openCamera, capturePhoto, stopCamera, fileToBase64 } from '../../services/camera';
 
 interface CameraCaptureProps {
-  onCapture: (photoBase64: string, context?: string) => void;
+  onCapture: (photos: string[], context?: string) => void;
   onCancel?: () => void;
 }
 
@@ -13,17 +13,21 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]); // collected photos (1 or 2)
   const [error, setError] = useState<string | null>(null);
   const [userContext, setUserContext] = useState('');
   const [mode, setMode] = useState<'photo' | 'video'>('photo');
   const [recording, setRecording] = useState(false);
   const [recordTimer, setRecordTimer] = useState(0);
+  const [capturingSecondAngle, setCapturingSecondAngle] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // For video: capture frames at intervals during recording
+  const videoFramesRef = useRef<string[]>([]);
 
-  // Cleanup on unmount
+  const hasPreview = photos.length > 0 && !capturingSecondAngle;
+
   useEffect(() => {
     return () => {
       if (streamRef.current) stopCamera(streamRef.current);
@@ -47,19 +51,36 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   const handleCapture = useCallback(() => {
     if (videoRef.current) {
       const photo = capturePhoto(videoRef.current);
-      setPreview(photo);
-      if (streamRef.current) {
-        stopCamera(streamRef.current);
-        streamRef.current = null;
+      if (capturingSecondAngle) {
+        // Add second angle photo
+        setPhotos((prev) => [...prev, photo]);
+        setCapturingSecondAngle(false);
+        if (streamRef.current) { stopCamera(streamRef.current); streamRef.current = null; }
+        setIsStreaming(false);
+      } else {
+        // First photo
+        setPhotos([photo]);
+        if (streamRef.current) { stopCamera(streamRef.current); streamRef.current = null; }
+        setIsStreaming(false);
       }
-      setIsStreaming(false);
     }
-  }, []);
+  }, [capturingSecondAngle]);
+
+  const handleAddSecondAngle = useCallback(() => {
+    setCapturingSecondAngle(true);
+    startCamera();
+  }, [startCamera]);
 
   const startRecording = useCallback(() => {
-    if (!streamRef.current) return;
+    if (!streamRef.current || !videoRef.current) return;
 
     chunksRef.current = [];
+    videoFramesRef.current = [];
+
+    // Capture first frame immediately (1s will be captured via interval)
+    const firstFrame = capturePhoto(videoRef.current);
+    videoFramesRef.current.push(firstFrame);
+
     const recorder = new MediaRecorder(streamRef.current, {
       mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
@@ -71,11 +92,12 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
     };
 
     recorder.onstop = () => {
-      // Extract the best frame from the middle of the video
+      // Capture last frame for second angle
       if (videoRef.current && streamRef.current) {
-        // Take a photo at the end of recording as the "best" frame
-        const photo = capturePhoto(videoRef.current);
-        setPreview(photo);
+        const lastFrame = capturePhoto(videoRef.current);
+        videoFramesRef.current.push(lastFrame);
+        // Use first and last frames as 2 angles
+        setPhotos([...videoFramesRef.current]);
         stopCamera(streamRef.current);
         streamRef.current = null;
         setIsStreaming(false);
@@ -87,11 +109,9 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
     setRecording(true);
     setRecordTimer(0);
 
-    // Timer countdown
     timerRef.current = setInterval(() => {
       setRecordTimer((prev) => {
         if (prev >= 4.9) {
-          // Auto-stop at 5 seconds
           stopRecording();
           return 5;
         }
@@ -113,30 +133,35 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   }, []);
 
   const handleRetake = useCallback(() => {
-    setPreview(null);
+    setPhotos([]);
     setRecordTimer(0);
+    setCapturingSecondAngle(false);
+    videoFramesRef.current = [];
     startCamera();
   }, [startCamera]);
 
   const handleConfirm = useCallback(() => {
-    if (preview) {
-      onCapture(preview, userContext.trim() || undefined);
+    if (photos.length > 0) {
+      onCapture(photos, userContext.trim() || undefined);
     }
-  }, [preview, userContext, onCapture]);
+  }, [photos, userContext, onCapture]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.type.startsWith('video/')) {
-        // Extract frame from video file
+        // Extract 2 frames from video file (at 25% and 75% duration)
         const url = URL.createObjectURL(file);
         const vid = document.createElement('video');
         vid.src = url;
         vid.muted = true;
         vid.playsInline = true;
+        const frames: string[] = [];
+
         await new Promise<void>((resolve) => {
           vid.onloadeddata = () => {
-            vid.currentTime = Math.min(vid.duration / 2, 2.5);
+            const t1 = Math.min(vid.duration * 0.25, 1);
+            vid.currentTime = t1;
           };
           vid.onseeked = () => {
             const canvas = document.createElement('canvas');
@@ -144,14 +169,23 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
             canvas.height = vid.videoHeight;
             const ctx = canvas.getContext('2d')!;
             ctx.drawImage(vid, 0, 0);
-            setPreview(canvas.toDataURL('image/jpeg', 0.85));
-            URL.revokeObjectURL(url);
-            resolve();
+            frames.push(canvas.toDataURL('image/jpeg', 0.85));
+
+            if (frames.length === 1) {
+              // Seek to second position
+              const t2 = Math.min(vid.duration * 0.75, vid.duration - 0.5);
+              vid.currentTime = t2;
+            } else {
+              // Done - got 2 frames
+              URL.revokeObjectURL(url);
+              setPhotos(frames);
+              resolve();
+            }
           };
         });
       } else {
         const base64 = await fileToBase64(file);
-        setPreview(base64);
+        setPhotos([base64]);
       }
     }
   }, []);
@@ -169,7 +203,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
       }}
     >
       {/* Mode toggle */}
-      {!isStreaming && !preview && (
+      {!isStreaming && !hasPreview && !capturingSecondAngle && (
         <div style={{
           display: 'flex',
           borderRadius: 'var(--radius-full)',
@@ -182,13 +216,8 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
               padding: '8px 20px',
               background: mode === 'photo' ? 'var(--accent-primary)' : 'var(--bg-card)',
               color: mode === 'photo' ? 'var(--bg-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
+              border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
             <Camera size={14} /> Photo
@@ -199,13 +228,8 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
               padding: '8px 20px',
               background: mode === 'video' ? 'var(--accent-primary)' : 'var(--bg-card)',
               color: mode === 'video' ? 'var(--bg-primary)' : 'var(--text-secondary)',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
+              border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
             <Video size={14} /> Vidéo 5s
@@ -221,13 +245,13 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           borderRadius: 'var(--radius-lg)',
           overflow: 'hidden',
           background: 'var(--bg-secondary)',
-          border: `2px solid ${recording ? 'var(--danger)' : 'var(--border-color)'}`,
+          border: `2px solid ${recording ? 'var(--danger)' : capturingSecondAngle ? 'var(--accent-primary)' : 'var(--border-color)'}`,
           position: 'relative',
         }}
       >
-        {preview ? (
+        {hasPreview ? (
           <img
-            src={preview}
+            src={photos[photos.length - 1]}
             alt="Preview"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
@@ -245,27 +269,41 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           />
         )}
 
-        {!isStreaming && !preview && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 16,
-            }}
-          >
+        {!isStreaming && !hasPreview && !capturingSecondAngle && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+          }}>
             {mode === 'photo' ? <Camera size={48} style={{ color: 'var(--text-muted)' }} /> : <Video size={48} style={{ color: 'var(--text-muted)' }} />}
             <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '0 20px' }}>
               {mode === 'photo'
                 ? 'Prenez une photo de votre plat avec votre index visible'
                 : 'Filmez votre plat sous différents angles (5s max)'}
             </p>
-            {error && (
-              <p style={{ color: 'var(--danger)', fontSize: 12 }}>{error}</p>
-            )}
+            {error && <p style={{ color: 'var(--danger)', fontSize: 12 }}>{error}</p>}
+          </div>
+        )}
+
+        {/* Second angle indicator */}
+        {capturingSecondAngle && isStreaming && (
+          <div style={{
+            position: 'absolute', top: 12, left: 12,
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'rgba(0,212,255,0.9)', padding: '4px 10px',
+            borderRadius: 'var(--radius-full)', fontSize: 12, fontWeight: 700, color: 'white',
+          }}>
+            2ème angle
+          </div>
+        )}
+
+        {/* Photo count badge */}
+        {hasPreview && photos.length > 1 && (
+          <div style={{
+            position: 'absolute', top: 12, right: 12,
+            background: 'rgba(0,212,255,0.9)', padding: '4px 10px',
+            borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 700, color: 'white',
+          }}>
+            {photos.length} angles
           </div>
         )}
 
@@ -273,18 +311,10 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
         {recording && (
           <>
             <div style={{
-              position: 'absolute',
-              top: 12,
-              left: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(239,68,68,0.9)',
-              padding: '4px 10px',
-              borderRadius: 'var(--radius-full)',
-              fontSize: 12,
-              fontWeight: 700,
-              color: 'white',
+              position: 'absolute', top: 12, left: 12,
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(239,68,68,0.9)', padding: '4px 10px',
+              borderRadius: 'var(--radius-full)', fontSize: 12, fontWeight: 700, color: 'white',
             }}>
               <div style={{
                 width: 8, height: 8, borderRadius: '50%', background: 'white',
@@ -292,35 +322,24 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
               }} />
               REC {recordTimer.toFixed(1)}s / 5s
             </div>
-            {/* Progress bar */}
             <div style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              height: 4,
-              width: `${(recordTimer / 5) * 100}%`,
-              background: 'var(--danger)',
+              position: 'absolute', bottom: 0, left: 0, height: 4,
+              width: `${(recordTimer / 5) * 100}%`, background: 'var(--danger)',
               transition: 'width 100ms linear',
             }} />
           </>
         )}
 
-        {isStreaming && !recording && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              pointerEvents: 'none',
-              border: '2px solid var(--accent-primary)',
-              borderRadius: 'var(--radius-lg)',
-              opacity: 0.5,
-            }}
-          />
+        {isStreaming && !recording && !capturingSecondAngle && (
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            border: '2px solid var(--accent-primary)', borderRadius: 'var(--radius-lg)', opacity: 0.5,
+          }} />
         )}
       </div>
 
-      {/* Context input - shown when photo is taken */}
-      {preview && (
+      {/* Context input - shown when photo(s) taken */}
+      {hasPreview && (
         <div style={{ width: '100%', maxWidth: 400 }}>
           <label className="label">Contexte (optionnel)</label>
           <input
@@ -336,8 +355,8 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 12 }}>
-        {!isStreaming && !preview && (
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {!isStreaming && !hasPreview && !capturingSecondAngle && (
           <>
             <button className="btn btn-primary" onClick={startCamera}>
               {mode === 'photo' ? <Camera size={18} /> : <Video size={18} />}
@@ -366,13 +385,22 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
             >
               <Camera size={28} />
             </button>
-            {onCancel && (
+            {onCancel && !capturingSecondAngle && (
               <button className="btn btn-secondary" onClick={() => {
                 if (streamRef.current) stopCamera(streamRef.current);
                 setIsStreaming(false);
                 onCancel();
               }}>
                 Annuler
+              </button>
+            )}
+            {capturingSecondAngle && (
+              <button className="btn btn-secondary" onClick={() => {
+                if (streamRef.current) { stopCamera(streamRef.current); streamRef.current = null; }
+                setIsStreaming(false);
+                setCapturingSecondAngle(false);
+              }}>
+                Annuler 2ème angle
               </button>
             )}
           </>
@@ -409,11 +437,16 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
           </button>
         )}
 
-        {preview && (
+        {hasPreview && (
           <>
             <button className="btn btn-secondary" onClick={handleRetake}>
               <RotateCcw size={18} /> Reprendre
             </button>
+            {photos.length === 1 && mode === 'photo' && (
+              <button className="btn btn-secondary" onClick={handleAddSecondAngle}>
+                <Plus size={18} /> 2ème angle
+              </button>
+            )}
             <button className="btn btn-primary" onClick={handleConfirm}>
               <Check size={18} /> Valider
             </button>
