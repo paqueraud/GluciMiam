@@ -5,14 +5,13 @@ import { useAppStore } from '../stores/appStore';
 import CameraCapture from '../components/camera/CameraCapture';
 import UserSelector from '../components/user/UserSelector';
 import { analyzeFood } from '../services/llm';
-import { initHandDetection, detectHand, identifyUserByHand } from '../services/mediapipe';
 import { db } from '../db';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
 }
 
-type Step = 'idle' | 'camera' | 'select-user' | 'analyzing';
+type Step = 'idle' | 'select-user' | 'camera' | 'analyzing';
 
 export default function HomePage({ onNavigate }: HomePageProps) {
   const {
@@ -25,13 +24,10 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
   const [step, setStep] = useState<Step>('idle');
   const [analyzing, setAnalyzing] = useState(false);
-  const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pendingContext, setPendingContext] = useState<string | undefined>(undefined);
   const isCreatingSession = useRef(false);
 
   useEffect(() => {
-    // Only redirect on initial load if there's an existing active session
     loadActiveSession().then(() => {
       const session = useAppStore.getState().activeSession;
       if (session && !isCreatingSession.current) {
@@ -40,57 +36,48 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     });
     loadUsers();
     loadActiveLLMConfig();
-    initHandDetection().catch(() => {
-      // MediaPipe may fail to load on some devices, that's ok
-    });
   }, [loadActiveSession, loadUsers, loadActiveLLMConfig, onNavigate]);
 
-  const handleNewSession = () => {
-    setStep('camera');
+  const handleNewSession = async () => {
     setError(null);
+    await loadUsers();
+    const currentUsers = useAppStore.getState().users;
+
+    if (currentUsers.length === 0) {
+      onNavigate('new-user');
+      return;
+    }
+
+    if (currentUsers.length === 1) {
+      setCurrentUser(currentUsers[0]);
+      setStep('camera');
+    } else {
+      setStep('select-user');
+    }
+  };
+
+  const handleUserSelect = async (userId: number) => {
+    const user = await db.users.get(userId);
+    if (user) {
+      setCurrentUser(user);
+      setStep('camera');
+    }
   };
 
   const handlePhotoCapture = useCallback(async (photoBase64: string, userContext?: string) => {
-    setPendingPhoto(photoBase64);
-    setPendingContext(userContext);
+    const user = useAppStore.getState().currentUser;
+    if (!user) return;
+
     setStep('analyzing');
     setAnalyzing(true);
+    isCreatingSession.current = true;
 
-    try {
-      // Try hand detection to identify user
-      const img = new Image();
-      img.src = photoBase64;
-      await new Promise((resolve) => { img.onload = resolve; });
+    const session = await startSession(user.id!);
+    await processAndAddFoodItem(photoBase64, user.fingerLengthMm, session.id!, userContext);
 
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-
-      const handResult = detectHand(canvas);
-
-      if (handResult.detected && handResult.indexFingerLength) {
-        const user = await identifyUserByHand(handResult.indexFingerLength, img.naturalWidth);
-        if (user) {
-          setCurrentUser(user);
-          isCreatingSession.current = true;
-          const session = await startSession(user.id!);
-          await processAndAddFoodItem(photoBase64, user.fingerLengthMm, session.id!, userContext);
-          isCreatingSession.current = false;
-          onNavigate('session');
-          return;
-        }
-      }
-
-      setAnalyzing(false);
-      setStep('select-user');
-    } catch {
-      isCreatingSession.current = false;
-      setAnalyzing(false);
-      setStep('select-user');
-    }
-  }, [setCurrentUser, startSession, onNavigate]);
+    isCreatingSession.current = false;
+    onNavigate('session');
+  }, [startSession, onNavigate]);
 
   const processAndAddFoodItem = async (photoBase64: string, fingerLengthMm: number, sessionId: number, userContext?: string) => {
     try {
@@ -104,6 +91,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         detectedFoodName: result.foodName,
         estimatedWeightG: result.estimatedWeightG,
         estimatedCarbsG: result.totalCarbsG,
+        carbsPer100g: result.carbsPer100g,
         llmResponse: result.reasoning,
         confidence: result.confidence,
       });
@@ -121,22 +109,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         confidence: 0,
       });
       setError(err instanceof Error ? err.message : "Erreur d'analyse LLM");
-    }
-  };
-
-  const handleUserSelect = async (userId: number) => {
-    const user = await db.users.get(userId);
-    if (user) {
-      setCurrentUser(user);
-      isCreatingSession.current = true;
-      setStep('analyzing');
-      setAnalyzing(true);
-      const session = await startSession(userId);
-      if (pendingPhoto) {
-        await processAndAddFoodItem(pendingPhoto, user.fingerLengthMm, session.id!, pendingContext);
-      }
-      isCreatingSession.current = false;
-      onNavigate('session');
     }
   };
 
@@ -225,8 +197,20 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             </motion.button>
 
             <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', maxWidth: 250, marginTop: 8 }}>
-              Prenez votre plat en photo avec votre index visible pour commencer
+              Prenez votre plat en photo pour compter les glucides
             </p>
+          </motion.div>
+        )}
+
+        {step === 'select-user' && (
+          <motion.div
+            key="select-user"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+          >
+            <UserSelector onSelect={handleUserSelect} onCreateNew={handleCreateUser} />
           </motion.div>
         )}
 
@@ -242,21 +226,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
               onCapture={handlePhotoCapture}
               onCancel={() => setStep('idle')}
             />
-          </motion.div>
-        )}
-
-        {step === 'select-user' && (
-          <motion.div
-            key="select-user"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-          >
-            <p style={{ color: 'var(--warning)', fontSize: 13, marginBottom: 12, textAlign: 'center' }}>
-              Main non reconnue automatiquement
-            </p>
-            <UserSelector onSelect={handleUserSelect} onCreateNew={handleCreateUser} />
           </motion.div>
         )}
 

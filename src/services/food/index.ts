@@ -101,6 +101,13 @@ export async function findFoodCarbs(foodName: string): Promise<number | null> {
   return null;
 }
 
+export async function getAllFoodsSorted(): Promise<FoodDatabaseEntry[]> {
+  const all = await db.foodDatabase.toArray();
+  return all
+    .filter((e) => e.name.length > 1) // Filter out single-letter section separators
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}
+
 export async function getFoodDatabaseStats(): Promise<{ total: number; bySource: Record<string, number> }> {
   const all = await db.foodDatabase.toArray();
   const bySource: Record<string, number> = {};

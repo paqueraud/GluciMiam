@@ -1,5 +1,5 @@
 import { useAppStore } from '../../stores/appStore';
-import { Menu, X, Bot, UserPlus, UserCog, Download, Upload } from 'lucide-react';
+import { Menu, X, Bot, UserPlus, UserCog, Download, Upload, HelpCircle, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface BurgerMenuProps {
@@ -15,6 +15,11 @@ export default function BurgerMenu({ onNavigate }: BurgerMenuProps) {
     { id: 'edit-user', label: 'Modifier utilisateur', icon: UserCog },
     { id: 'import', label: 'Importer BDD', icon: Download },
     { id: 'export', label: 'Exporter BDD', icon: Upload },
+  ];
+
+  const bottomItems = [
+    { id: 'help', label: 'Aide', icon: HelpCircle },
+    { id: 'about', label: 'À propos', icon: Info },
   ];
 
   return (
@@ -125,6 +130,47 @@ export default function BurgerMenu({ onNavigate }: BurgerMenuProps) {
                   {item.label}
                 </button>
               ))}
+
+              <div style={{ flex: 1 }} />
+
+              <div style={{ borderTop: '1px solid var(--border-color)', marginTop: 8, paddingTop: 8 }}>
+                {bottomItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onNavigate(item.id);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '14px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: 14,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all var(--transition-fast)',
+                      width: '100%',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--bg-card-hover)';
+                      e.currentTarget.style.color = 'var(--accent-primary)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = 'var(--text-primary)';
+                    }}
+                  >
+                    <item.icon size={18} style={{ opacity: 0.8 }} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </motion.nav>
           </>
         )}

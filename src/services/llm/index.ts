@@ -482,8 +482,23 @@ export async function testLLMConnection(): Promise<{ success: boolean; message: 
 export async function saveLLMConfig(config: Omit<LLMConfig, 'id'>): Promise<void> {
   // Deactivate all existing configs
   await db.llmConfigs.toCollection().modify({ isActive: false });
-  // Add new
-  await db.llmConfigs.add(config as LLMConfig);
+
+  // Check if a config for this provider already exists
+  const existing = await db.llmConfigs.where('provider').equals(config.provider).first();
+
+  if (existing) {
+    await db.llmConfigs.update(existing.id!, {
+      apiKey: config.apiKey,
+      model: config.model,
+      isActive: true,
+    });
+  } else {
+    await db.llmConfigs.add(config as LLMConfig);
+  }
+}
+
+export async function getLLMConfigByProvider(provider: LLMProvider): Promise<LLMConfig | undefined> {
+  return db.llmConfigs.where('provider').equals(provider).first();
 }
 
 export async function getActiveLLMConfig(): Promise<LLMConfig | undefined> {

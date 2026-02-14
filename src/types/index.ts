@@ -42,6 +42,7 @@ export interface FoodItem {
   detectedFoodName: string;
   estimatedWeightG: number;
   estimatedCarbsG: number;
+  carbsPer100g?: number;
   correctedCarbsG?: number;
   llmResponse?: string;
   confidence?: number;

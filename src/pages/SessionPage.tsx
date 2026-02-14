@@ -35,6 +35,7 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
         detectedFoodName: result.foodName,
         estimatedWeightG: result.estimatedWeightG,
         estimatedCarbsG: result.totalCarbsG,
+        carbsPer100g: result.carbsPer100g,
         llmResponse: result.reasoning,
         confidence: result.confidence,
       });

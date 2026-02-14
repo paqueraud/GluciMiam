@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, CheckCircle, Wifi, WifiOff, Loader } from 'lucide-react';
 import type { LLMProvider, LLMConfig } from '../../types';
-import { saveLLMConfig, getActiveLLMConfig, DEFAULT_MODELS, testLLMConnection } from '../../services/llm';
+import { saveLLMConfig, getActiveLLMConfig, getLLMConfigByProvider, DEFAULT_MODELS, testLLMConnection } from '../../services/llm';
 import { useAppStore } from '../../stores/appStore';
 
 interface LLMSettingsProps {
@@ -126,13 +126,22 @@ export default function LLMSettings({ onClose }: LLMSettingsProps) {
             {PROVIDERS.map((p) => (
               <button
                 key={p.id}
-                onClick={() => {
+                onClick={async () => {
                   setProvider(p.id);
-                  setModel(
-                    p.id === 'gemini' ? GEMINI_MODELS[0].id
-                    : p.id === 'claude' ? CLAUDE_MODELS[0].id
-                    : DEFAULT_MODELS[p.id]
-                  );
+                  setTestResult(null);
+                  // Load saved config for this provider
+                  const savedConfig = await getLLMConfigByProvider(p.id);
+                  if (savedConfig) {
+                    setApiKey(savedConfig.apiKey);
+                    setModel(savedConfig.model || '');
+                  } else {
+                    setApiKey('');
+                    setModel(
+                      p.id === 'gemini' ? GEMINI_MODELS[0].id
+                      : p.id === 'claude' ? CLAUDE_MODELS[0].id
+                      : DEFAULT_MODELS[p.id]
+                    );
+                  }
                 }}
                 style={{
                   display: 'flex',
