@@ -34,15 +34,16 @@ function getMealTimeContext(): string {
 function buildPass1Prompt(fingerLengthMm: number, imageCount: number, userContext?: string): string {
   const mealTime = getMealTimeContext();
   const multiAngle = imageCount > 1
-    ? `\n${imageCount} photos sous des angles différents sont fournies pour une meilleure estimation des volumes.`
+    ? `\nATTENTION : ${imageCount} photos du MÊME plat sous des angles différents sont fournies. Ce sont des vues différentes du MÊME repas, PAS des plats différents. Ne liste chaque aliment qu'UNE SEULE fois.`
     : '';
   const contextLine = userContext
     ? `\nL'utilisateur a identifié ce plat comme : "${userContext}".`
     : '';
 
-  return `Tu es un expert en nutrition. Identifie TOUS les aliments visibles dans cette photo de plat/repas.
+  return `Tu es un expert en nutrition. Identifie TOUS les aliments DISTINCTS visibles dans ce plat/repas.
 Un index de ${fingerLengthMm}mm est visible comme étalon de taille.
 Ce repas est pris au moment du ${mealTime}.${multiAngle}${contextLine}
+IMPORTANT : liste chaque aliment une seule fois, même si tu vois plusieurs images. Les images montrent le même plat.
 Réponds UNIQUEMENT en JSON valide:
 {"foods":["nom aliment 1 en français","nom aliment 2 en français",...]}`;
 }
@@ -55,7 +56,7 @@ function buildPass2Prompt(
 ): string {
   const mealTime = getMealTimeContext();
   const multiAngle = imageCount > 1
-    ? `\n${imageCount} photos sous des angles différents sont fournies. Utilise les différentes perspectives pour mieux estimer les volumes et poids.`
+    ? `\nATTENTION : ${imageCount} photos du MÊME plat sous des angles différents sont fournies. Ce sont des vues différentes du MÊME repas. Utilise les différentes perspectives pour mieux estimer les volumes et poids. Ne duplique PAS les aliments : chaque aliment ne doit apparaître qu'UNE SEULE FOIS dans ta réponse.`
     : '';
   const contextLine = userContext
     ? `\nL'utilisateur a identifié ce plat comme : "${userContext}". Utilise cette information en priorité.\n`
@@ -308,8 +309,8 @@ function parsePass1Response(text: string): string[] {
   const jsonStr = extractJSON(text);
   try {
     const parsed = JSON.parse(jsonStr);
-    if (Array.isArray(parsed.foods)) return parsed.foods.filter((f: unknown) => typeof f === 'string' && f.trim());
-    if (Array.isArray(parsed)) return parsed.filter((f: unknown) => typeof f === 'string' && f.trim());
+    if (Array.isArray(parsed.foods)) return [...new Set(parsed.foods.filter((f: unknown) => typeof f === 'string' && f.trim()) as string[])];
+    if (Array.isArray(parsed)) return [...new Set(parsed.filter((f: unknown) => typeof f === 'string' && f.trim()) as string[])];
   } catch { /* continue */ }
 
   // Fallback: try to extract food names from text
@@ -429,6 +430,25 @@ async function correctWithFoodDB(result: LLMAnalysisResult): Promise<LLMAnalysis
   return result;
 }
 
+// ─── Deduplication ──────────────────────────────────────────────────
+
+function deduplicateFoods(foods: LLMFoodEntry[]): LLMFoodEntry[] {
+  const seen = new Map<string, LLMFoodEntry>();
+  for (const food of foods) {
+    const key = food.foodName.toLowerCase().trim();
+    if (seen.has(key)) {
+      // Keep the entry with higher confidence, or average if same
+      const existing = seen.get(key)!;
+      if (food.confidence > existing.confidence) {
+        seen.set(key, food);
+      }
+    } else {
+      seen.set(key, food);
+    }
+  }
+  return [...seen.values()];
+}
+
 // ─── Main analysis: 2-pass multi-food ───────────────────────────────
 
 export async function analyzeFoodMulti(
@@ -471,9 +491,12 @@ export async function analyzeFoodMulti(
     throw new Error(pass2Result.error);
   }
 
+  // Deduplicate: merge entries with the same foodName (LLM may duplicate with multi-angle)
+  const deduped = deduplicateFoods(pass2Result);
+
   // Post-correction: for foods where BDD was not found in pass 1, try OpenFoodFacts
   const correctedFoods: LLMFoodEntry[] = [];
-  for (const food of pass2Result) {
+  for (const food of deduped) {
     const corrected = await correctWithFoodDB(food);
     correctedFoods.push(corrected);
   }
