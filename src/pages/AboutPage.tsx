@@ -1,4 +1,4 @@
-import { ArrowLeft, Heart, X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 
 interface AboutPageProps {
   onClose: () => void;
@@ -137,18 +137,13 @@ export default function AboutPage({ onClose }: AboutPageProps) {
               Nicolas PAQUERAUD
             </div>
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
               marginTop: 6,
               fontSize: 12,
               color: 'var(--text-secondary)',
               fontStyle: 'italic',
+              textAlign: 'center',
             }}>
-              <span>Une application développée par un diabétique</span>
-              <Heart size={12} color="var(--danger)" fill="var(--danger)" />
-              <span>pour les diabétiques</span>
+              Une application développée par un diabétique pour les diabétiques
             </div>
           </div>
           <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>

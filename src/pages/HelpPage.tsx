@@ -13,7 +13,6 @@ interface HelpSection {
   keywords: string;
 }
 
-// Plain text content for each section (searchable)
 const SECTIONS_DATA: { id: string; title: string; iconName: string; keywords: string; content: string }[] = [
   {
     id: 'getting-started',
@@ -269,11 +268,27 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   lightbulb: <Lightbulb size={16} />,
 };
 
-function HighlightedText({ text, searchQuery, currentIndex, allMatches }: {
+// Count occurrences of query in text
+function countOccurrences(text: string, query: string): number {
+  if (!query) return 0;
+  const lower = text.toLowerCase();
+  const qLower = query.toLowerCase();
+  let count = 0;
+  let pos = lower.indexOf(qLower);
+  while (pos !== -1) {
+    count++;
+    pos = lower.indexOf(qLower, pos + 1);
+  }
+  return count;
+}
+
+// Render text with highlighted matches. counterRef is a mutable object { value: number } used
+// to assign a sequential global index to each match across all HighlightedText calls.
+function HighlightedText({ text, searchQuery, currentGlobalIndex, counter }: {
   text: string;
   searchQuery: string;
-  currentIndex: number;
-  allMatches: { sectionId: string; position: number }[];
+  currentGlobalIndex: number;
+  counter: React.RefObject<number>;
 }) {
   if (!searchQuery.trim()) return <>{text}</>;
 
@@ -281,31 +296,33 @@ function HighlightedText({ text, searchQuery, currentIndex, allMatches }: {
   const queryLower = searchQuery.toLowerCase();
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
-  let matchIdx = 0;
   let pos = lower.indexOf(queryLower);
 
   while (pos !== -1) {
     if (pos > lastIndex) {
-      parts.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex, pos)}</span>);
+      parts.push(<span key={`t-${pos}`}>{text.slice(lastIndex, pos)}</span>);
     }
 
-    // Find global match index for this position
-    const globalIdx = allMatches.findIndex((m, i) => i >= matchIdx && m.position === pos);
-    const isCurrent = globalIdx === currentIndex;
-    matchIdx = globalIdx + 1;
+    const globalIdx = counter.current;
+    counter.current++;
+    const isCurrent = globalIdx === currentGlobalIndex;
 
     parts.push(
       <mark
         key={`m-${pos}`}
-        data-match-index={globalIdx}
+        data-match-global={globalIdx}
         style={{
-          background: isCurrent ? 'rgba(255,220,50,0.35)' : 'rgba(0,212,255,0.2)',
-          color: isCurrent ? 'var(--text-primary)' : 'inherit',
-          borderRadius: 4,
-          padding: '2px 3px',
+          background: isCurrent ? 'rgba(255,220,50,0.45)' : 'rgba(255,220,50,0.18)',
+          color: 'inherit',
+          borderRadius: 3,
+          padding: '1px 3px',
           fontWeight: isCurrent ? 700 : 'inherit',
-          border: isCurrent ? '2px solid rgba(255,220,50,0.8)' : '1px solid rgba(0,212,255,0.15)',
-          boxShadow: isCurrent ? '0 0 12px rgba(255,220,50,0.5), 0 0 24px rgba(255,220,50,0.2)' : 'none',
+          border: isCurrent ? '2px solid rgba(255,200,0,0.9)' : '1px solid rgba(255,220,50,0.3)',
+          boxShadow: isCurrent
+            ? '0 0 10px rgba(255,220,50,0.6), 0 0 20px rgba(255,200,0,0.3), 0 0 4px rgba(255,220,50,0.8)'
+            : 'none',
+          outline: isCurrent ? '2px solid rgba(255,220,50,0.4)' : 'none',
+          outlineOffset: isCurrent ? '1px' : '0',
         }}
       >
         {text.slice(pos, pos + searchQuery.length)}
@@ -317,7 +334,7 @@ function HighlightedText({ text, searchQuery, currentIndex, allMatches }: {
   }
 
   if (lastIndex < text.length) {
-    parts.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex)}</span>);
+    parts.push(<span key={`t-end`}>{text.slice(lastIndex)}</span>);
   }
 
   return <>{parts}</>;
@@ -337,29 +354,25 @@ export default function HelpPage({ onClose }: HelpPageProps) {
     })),
   []);
 
-  // Find all matches across all sections
-  const allMatches = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+  // Total match count and which sections have matches
+  const { totalMatches, matchingSectionIds, sectionMatchInfo } = useMemo(() => {
+    if (!searchQuery.trim()) return { totalMatches: 0, matchingSectionIds: new Set<string>(), sectionMatchInfo: [] as { id: string; countBefore: number }[] };
     const queryLower = searchQuery.toLowerCase();
-    const matches: { sectionId: string; position: number }[] = [];
+    const ids = new Set<string>();
+    let running = 0;
+    const info: { id: string; countBefore: number }[] = [];
 
     for (const section of SECTIONS_DATA) {
-      const textLower = (section.title + '\n' + section.content).toLowerCase();
-      let pos = textLower.indexOf(queryLower);
-      while (pos !== -1) {
-        matches.push({ sectionId: section.id, position: pos - section.title.length - 1 });
-        pos = textLower.indexOf(queryLower, pos + 1);
+      const fullText = section.title + '\n' + section.content;
+      const count = countOccurrences(fullText, queryLower);
+      if (count > 0) {
+        ids.add(section.id);
+        info.push({ id: section.id, countBefore: running });
+        running += count;
       }
     }
-    return matches;
+    return { totalMatches: running, matchingSectionIds: ids, sectionMatchInfo: info };
   }, [searchQuery]);
-
-  // Sections that contain matches
-  const matchingSectionIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const m of allMatches) ids.add(m.sectionId);
-    return ids;
-  }, [allMatches]);
 
   const filteredSections = useMemo(() => {
     if (!searchQuery.trim()) return sections;
@@ -371,38 +384,42 @@ export default function HelpPage({ onClose }: HelpPageProps) {
     setCurrentMatchIndex(0);
   }, [searchQuery]);
 
-  // Scroll to current match
+  // Find which section contains the current match and expand it, then scroll
   useEffect(() => {
-    if (allMatches.length === 0) return;
-    const match = allMatches[currentMatchIndex];
-    if (!match) return;
+    if (totalMatches === 0 || !searchQuery.trim()) return;
 
-    // Expand the section containing the current match
-    setExpandedSection(match.sectionId);
+    // Find which section the current match is in
+    let targetSectionId: string | null = null;
+    for (let i = sectionMatchInfo.length - 1; i >= 0; i--) {
+      if (currentMatchIndex >= sectionMatchInfo[i].countBefore) {
+        targetSectionId = sectionMatchInfo[i].id;
+        break;
+      }
+    }
 
-    // Scroll to the highlighted element after render
-    setTimeout(() => {
-      const el = contentRef.current?.querySelector(`[data-match-index="${currentMatchIndex}"]`);
+    if (targetSectionId) {
+      setExpandedSection(targetSectionId);
+    }
+
+    // Scroll to the highlighted element after React re-renders
+    const timer = setTimeout(() => {
+      const el = contentRef.current?.querySelector(`[data-match-global="${currentMatchIndex}"]`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 50);
-  }, [currentMatchIndex, allMatches]);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [currentMatchIndex, totalMatches, searchQuery, sectionMatchInfo]);
 
   const goNextMatch = useCallback(() => {
-    if (allMatches.length === 0) return;
-    setCurrentMatchIndex((prev) => (prev + 1) % allMatches.length);
-  }, [allMatches]);
+    if (totalMatches === 0) return;
+    setCurrentMatchIndex((prev) => (prev + 1) % totalMatches);
+  }, [totalMatches]);
 
   const goPrevMatch = useCallback(() => {
-    if (allMatches.length === 0) return;
-    setCurrentMatchIndex((prev) => (prev - 1 + allMatches.length) % allMatches.length);
-  }, [allMatches]);
-
-  // Per-section matches for HighlightedText
-  const getSectionMatches = useCallback((sectionId: string) => {
-    return allMatches.filter((m) => m.sectionId === sectionId);
-  }, [allMatches]);
+    if (totalMatches === 0) return;
+    setCurrentMatchIndex((prev) => (prev - 1 + totalMatches) % totalMatches);
+  }, [totalMatches]);
 
   const scrollToSection = (id: string) => {
     setExpandedSection(id);
@@ -411,8 +428,10 @@ export default function HelpPage({ onClose }: HelpPageProps) {
     }, 100);
   };
 
-  const renderContent = (sectionId: string, text: string) => {
-    const sectionMatches = getSectionMatches(sectionId);
+  // Mutable counter reset at each render to assign sequential global indices to matches.
+  const renderCounter = useRef(0);
+
+  const renderContent = (text: string) => {
     const lines = text.split('\n');
 
     return (
@@ -421,7 +440,11 @@ export default function HelpPage({ onClose }: HelpPageProps) {
           const trimmed = line.trim();
           if (!trimmed) return <div key={i} style={{ height: 8 }} />;
 
-          // Detect numbered steps (1. Title)
+          const hl = (t: string) => (
+            <HighlightedText text={t} searchQuery={searchQuery} currentGlobalIndex={currentMatchIndex} counter={renderCounter} />
+          );
+
+          // Detect numbered steps
           const stepMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
           if (stepMatch) {
             return (
@@ -433,30 +456,26 @@ export default function HelpPage({ onClose }: HelpPageProps) {
                 }}>
                   {stepMatch[1]}
                 </div>
-                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                  <HighlightedText text={stepMatch[2]} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
-                </div>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{hl(stepMatch[2])}</div>
               </div>
             );
           }
 
-          // Detect "Q :" / "R :" for FAQ
           if (trimmed.startsWith('Q : ')) {
             return (
               <div key={i} style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13, marginTop: 8 }}>
-                <HighlightedText text={trimmed} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+                {hl(trimmed)}
               </div>
             );
           }
           if (trimmed.startsWith('R : ')) {
             return (
               <div key={i} style={{ paddingLeft: 16, borderLeft: '2px solid var(--border-color)' }}>
-                <HighlightedText text={trimmed.slice(4)} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+                {hl(trimmed.slice(4))}
               </div>
             );
           }
 
-          // Detect "Astuce :" tips
           if (trimmed.startsWith('Astuce :') || trimmed.startsWith('Astuce :')) {
             return (
               <div key={i} style={{
@@ -465,46 +484,38 @@ export default function HelpPage({ onClose }: HelpPageProps) {
                 fontSize: 12, display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 4,
               }}>
                 <Lightbulb size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0, marginTop: 1 }} />
-                <span>
-                  <HighlightedText text={trimmed.replace(/^Astuce\s*:\s*/, '')} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
-                </span>
+                <span>{hl(trimmed.replace(/^Astuce\s*:\s*/, ''))}</span>
               </div>
             );
           }
 
-          // Detect list items
           if (trimmed.startsWith('- ')) {
             return (
               <div key={i} style={{ paddingLeft: 16, display: 'flex', gap: 6 }}>
                 <span style={{ color: 'var(--accent-primary)' }}>•</span>
-                <span>
-                  <HighlightedText text={trimmed.slice(2)} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
-                </span>
+                <span>{hl(trimmed.slice(2))}</span>
               </div>
             );
           }
 
-          // Detect section titles (short lines without punctuation at end, followed by content)
           const nextLine = lines[i + 1]?.trim() || '';
           const isTitle = trimmed.length < 60 && !trimmed.endsWith('.') && !trimmed.endsWith(':') && !trimmed.startsWith('-') && nextLine && (nextLine.startsWith('-') || nextLine.length > 40);
-          if (isTitle && !stepMatch) {
+          if (isTitle) {
             return (
               <div key={i} style={{ color: 'var(--accent-primary)', fontSize: 13, fontWeight: 600, marginTop: 8 }}>
-                <HighlightedText text={trimmed} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+                {hl(trimmed)}
               </div>
             );
           }
 
-          // Default paragraph
-          return (
-            <div key={i}>
-              <HighlightedText text={trimmed} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
-            </div>
-          );
+          return <div key={i}>{hl(trimmed)}</div>;
         })}
       </div>
     );
   };
+
+  // Reset global counter before each render
+  renderCounter.current = 0;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -528,7 +539,7 @@ export default function HelpPage({ onClose }: HelpPageProps) {
         </button>
       </div>
 
-      {/* Search bar (sticky) */}
+      {/* Search bar */}
       <div style={{
         padding: '8px 16px',
         borderBottom: '1px solid var(--border-color)',
@@ -561,8 +572,7 @@ export default function HelpPage({ onClose }: HelpPageProps) {
           />
           {searchQuery && (
             <>
-              {/* Match counter and navigation */}
-              {allMatches.length > 0 && (
+              {totalMatches > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                   <span style={{
                     fontSize: 11,
@@ -571,32 +581,24 @@ export default function HelpPage({ onClose }: HelpPageProps) {
                     fontWeight: 600,
                     whiteSpace: 'nowrap',
                   }}>
-                    {currentMatchIndex + 1}/{allMatches.length}
+                    {currentMatchIndex + 1}/{totalMatches}
                   </span>
                   <button
                     onClick={goPrevMatch}
-                    style={{
-                      background: 'none', border: 'none', color: 'var(--text-muted)',
-                      cursor: 'pointer', padding: 2, display: 'flex',
-                    }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex' }}
                   >
                     <ChevronUp size={16} />
                   </button>
                   <button
                     onClick={goNextMatch}
-                    style={{
-                      background: 'none', border: 'none', color: 'var(--text-muted)',
-                      cursor: 'pointer', padding: 2, display: 'flex',
-                    }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex' }}
                   >
                     <ChevronDown size={16} />
                   </button>
                 </div>
               )}
-              {allMatches.length === 0 && searchQuery.trim() && (
-                <span style={{ fontSize: 11, color: 'var(--danger)', whiteSpace: 'nowrap' }}>
-                  0 résultat
-                </span>
+              {totalMatches === 0 && searchQuery.trim() && (
+                <span style={{ fontSize: 11, color: 'var(--danger)', whiteSpace: 'nowrap' }}>0 résultat</span>
               )}
               <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}>
                 <X size={14} />
@@ -608,7 +610,7 @@ export default function HelpPage({ onClose }: HelpPageProps) {
 
       {/* Scrollable content */}
       <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-        {/* Table of contents (only when not searching and nothing expanded) */}
+        {/* Table of contents */}
         {!searchQuery && !expandedSection && (
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
@@ -619,18 +621,10 @@ export default function HelpPage({ onClose }: HelpPageProps) {
                 key={s.id}
                 onClick={() => scrollToSection(s.id)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: '1px solid rgba(255,255,255,0.04)',
-                  cursor: 'pointer',
-                  color: 'var(--text-primary)',
-                  textAlign: 'left',
-                  fontSize: 13,
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                  padding: '10px 12px', background: 'none', border: 'none',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer',
+                  color: 'var(--text-primary)', textAlign: 'left', fontSize: 13,
                 }}
               >
                 <span style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>{s.icon}</span>
@@ -642,58 +636,50 @@ export default function HelpPage({ onClose }: HelpPageProps) {
         )}
 
         {/* Sections */}
-        {filteredSections.map((s) => (
-          <div
-            key={s.id}
-            ref={(el) => { sectionRefs.current[s.id] = el; }}
-            style={{ marginBottom: 16 }}
-          >
-            <button
-              onClick={() => setExpandedSection(expandedSection === s.id ? null : s.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                width: '100%',
-                padding: '12px 14px',
-                background: expandedSection === s.id ? 'var(--bg-card-hover)' : 'var(--bg-card)',
-                border: `1px solid ${expandedSection === s.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                borderRadius: 'var(--radius-md)',
-                cursor: 'pointer',
-                color: 'var(--text-primary)',
-                textAlign: 'left',
-                fontSize: 14,
-                fontWeight: 600,
-              }}
+        {filteredSections.map((s) => {
+          const isExpanded = expandedSection === s.id || !!searchQuery;
+          return (
+            <div
+              key={s.id}
+              ref={(el) => { sectionRefs.current[s.id] = el; }}
+              style={{ marginBottom: 16 }}
             >
-              <span style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>{s.icon}</span>
-              <span style={{ flex: 1 }}>
-                <HighlightedText text={s.title} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={getSectionMatches(s.id)} />
-              </span>
-              <ChevronRight
-                size={14}
-                color="var(--text-muted)"
+              <button
+                onClick={() => setExpandedSection(expandedSection === s.id ? null : s.id)}
                 style={{
-                  transform: expandedSection === s.id ? 'rotate(90deg)' : 'none',
-                  transition: 'transform 0.2s',
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                  padding: '12px 14px',
+                  background: expandedSection === s.id ? 'var(--bg-card-hover)' : 'var(--bg-card)',
+                  border: `1px solid ${expandedSection === s.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                  borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                  color: 'var(--text-primary)', textAlign: 'left', fontSize: 14, fontWeight: 600,
                 }}
-              />
-            </button>
-            {(expandedSection === s.id || searchQuery) && (
-              <div style={{
-                padding: '12px 16px',
-                fontSize: 13,
-                color: 'var(--text-secondary)',
-                lineHeight: 1.6,
-                borderLeft: '2px solid var(--accent-primary)',
-                marginLeft: 20,
-                marginTop: 4,
-              }}>
-                {renderContent(s.id, s.content)}
-              </div>
-            )}
-          </div>
-        ))}
+              >
+                <span style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>{s.icon}</span>
+                <span style={{ flex: 1 }}>
+                  <HighlightedText text={s.title} searchQuery={searchQuery} currentGlobalIndex={currentMatchIndex} counter={renderCounter} />
+                </span>
+                <ChevronRight
+                  size={14}
+                  color="var(--text-muted)"
+                  style={{
+                    transform: isExpanded ? 'rotate(90deg)' : 'none',
+                    transition: 'transform 0.2s',
+                  }}
+                />
+              </button>
+              {isExpanded && (
+                <div style={{
+                  padding: '12px 16px', fontSize: 13, color: 'var(--text-secondary)',
+                  lineHeight: 1.6, borderLeft: '2px solid var(--accent-primary)',
+                  marginLeft: 20, marginTop: 4,
+                }}>
+                  {renderContent(s.content)}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {filteredSections.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
