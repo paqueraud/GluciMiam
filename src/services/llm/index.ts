@@ -1,6 +1,7 @@
 import type { LLMConfig, LLMAnalysisResult, LLMProvider } from '../../types';
 import { db } from '../../db';
 import { searchFoodMultiKeyword, searchFoodOnline } from '../food';
+import { optimizeImageForLLM } from '../camera';
 
 const PROVIDER_URLS: Record<LLMProvider, string> = {
   claude: 'https://api.anthropic.com/v1/messages',
@@ -16,7 +17,18 @@ const DEFAULT_MODELS: Record<LLMProvider, string> = {
   perplexity: 'sonar-pro',
 };
 
+function getMealTimeContext(): string {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 10) return 'petit-déjeuner (matin)';
+  if (hour >= 10 && hour < 12) return 'collation matinale';
+  if (hour >= 12 && hour < 14) return 'déjeuner (midi)';
+  if (hour >= 14 && hour < 17) return 'collation / goûter (après-midi)';
+  if (hour >= 17 && hour < 21) return 'dîner (soir)';
+  return 'collation nocturne';
+}
+
 function buildPrompt(fingerLengthMm: number, userContext?: string, dbHints?: string): string {
+  const mealTime = getMealTimeContext();
   const contextLine = userContext
     ? `\nIMPORTANT - L'utilisateur a identifié ce plat comme : "${userContext}". Utilise cette information en priorité pour identifier l'aliment.\n`
     : '';
@@ -26,7 +38,8 @@ function buildPrompt(fingerLengthMm: number, userContext?: string, dbHints?: str
     : '';
 
   return `Tu es un expert en nutrition pour diabétiques. Analyse cette photo de plat/aliment.
-Un index de ${fingerLengthMm}mm est visible comme étalon de taille.${contextLine}${dbLine}
+Un index de ${fingerLengthMm}mm est visible comme étalon de taille.
+Ce repas est pris au moment du ${mealTime}. Utilise cette information pour lever les ambiguïtés sur le type de plat.${contextLine}${dbLine}
 Réponds UNIQUEMENT en JSON valide:
 {"foodName":"nom en français","estimatedWeightG":poids_grammes,"carbsPer100g":glucides_pour_100g,"totalCarbsG":total_glucides,"confidence":0.0_a_1.0,"reasoning":"explication courte"}
 Si impossible: {"error":"raison","needsRetake":true}`;
@@ -359,6 +372,9 @@ export async function analyzeFood(
 ): Promise<LLMAnalysisResult> {
   const config = await getActiveConfig();
 
+  // Optimize image: resize to 1024px max + auto-levels contrast correction
+  const optimizedImage = await optimizeImageForLLM(imageBase64);
+
   // Search food DB to include hints in prompt
   const dbHints = await lookupFoodDB(userContext);
   const prompt = buildPrompt(fingerLengthMm, userContext, dbHints || undefined);
@@ -366,13 +382,13 @@ export async function analyzeFood(
   const callLLM = () => {
     switch (config.provider) {
       case 'claude':
-        return callClaude(config, imageBase64, prompt);
+        return callClaude(config, optimizedImage, prompt);
       case 'chatgpt':
-        return callChatGPT(config, imageBase64, prompt);
+        return callChatGPT(config, optimizedImage, prompt);
       case 'gemini':
-        return callGemini(config, imageBase64, prompt);
+        return callGemini(config, optimizedImage, prompt);
       case 'perplexity':
-        return callPerplexity(config, imageBase64, prompt);
+        return callPerplexity(config, optimizedImage, prompt);
       default:
         throw new Error(`Provider non supporté: ${config.provider}`);
     }
