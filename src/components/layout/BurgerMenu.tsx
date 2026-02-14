@@ -1,5 +1,5 @@
 import { useAppStore } from '../../stores/appStore';
-import { Menu, X, Bot, UserPlus, UserCog, Download, Upload, HelpCircle, Info } from 'lucide-react';
+import { Menu, X, Bot, UserPlus, UserCog, Download, Upload, HelpCircle, Info, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface BurgerMenuProps {
@@ -13,6 +13,7 @@ export default function BurgerMenu({ onNavigate }: BurgerMenuProps) {
     { id: 'llm-settings', label: 'Configuration LLM', icon: Bot },
     { id: 'new-user', label: 'Nouvel utilisateur', icon: UserPlus },
     { id: 'edit-user', label: 'Modifier utilisateur', icon: UserCog },
+    { id: 'food-db', label: 'Base alimentaire', icon: Database },
     { id: 'import', label: 'Importer BDD', icon: Download },
     { id: 'export', label: 'Exporter BDD', icon: Upload },
   ];

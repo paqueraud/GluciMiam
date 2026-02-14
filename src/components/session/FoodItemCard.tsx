@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Pencil, Check, X, Trash2, RefreshCw, Loader, Info, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Pencil, Check, X, Trash2, RefreshCw, Loader, Info, ChevronDown, ChevronUp, Search, AlertTriangle } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../../stores/appStore';
 import { analyzeFood } from '../../services/llm';
+import { searchFoodMultiKeyword } from '../../services/food';
 import FoodDatabasePicker from './FoodDatabasePicker';
 import type { FoodDatabaseEntry } from '../../types';
 
@@ -20,6 +21,9 @@ export default function FoodItemCard({ onError }: FoodItemCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [suggestions, setSuggestions] = useState<FoodDatabaseEntry[]>([]);
+  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
 
   if (sessionFoodItems.length === 0) return null;
 
@@ -29,6 +33,35 @@ export default function FoodItemCard({ onError }: FoodItemCardProps) {
   const carbsToShow = item.correctedCarbsG ?? item.estimatedCarbsG;
   const isFailed = item.confidence === 0 && item.estimatedCarbsG === 0;
   const currentCarbsPer100g = item.carbsPer100g ?? 0;
+  const lowConfidence = !isFailed && (item.confidence ?? 1) < 0.9;
+
+  // Load suggestions when item changes and confidence is low
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    setSuggestionsDismissed(false);
+    setSuggestionsLoaded(false);
+    setSuggestions([]);
+    if (!item.detectedFoodName || isFailed) return;
+    if ((item.confidence ?? 1) >= 0.9) return;
+    searchFoodMultiKeyword(item.detectedFoodName).then((results) => {
+      setSuggestions(results);
+      setSuggestionsLoaded(true);
+    });
+  }, [item.id, item.detectedFoodName, item.confidence, isFailed]);
+
+  const handleSuggestionSelect = (food: FoodDatabaseEntry) => {
+    if (item.id) {
+      const newCarbs = Math.round((item.estimatedWeightG * food.carbsPer100g / 100) * 10) / 10;
+      updateFoodItem(item.id, {
+        detectedFoodName: food.name,
+        carbsPer100g: food.carbsPer100g,
+        estimatedCarbsG: newCarbs,
+        correctedCarbsG: undefined,
+        confidence: 1.0,
+      });
+    }
+    setSuggestionsDismissed(true);
+  };
 
   const startEditCarbs = () => {
     setEditCarbsValue(String(carbsToShow));
@@ -204,6 +237,68 @@ export default function FoodItemCard({ onError }: FoodItemCardProps) {
             fontStyle: 'italic',
           }}>
             Contexte : {item.userContext}
+          </div>
+        )}
+
+        {/* Low confidence suggestions */}
+        {lowConfidence && suggestionsLoaded && !suggestionsDismissed && (
+          <div style={{
+            padding: '8px 10px',
+            borderRadius: 'var(--radius-sm)',
+            background: 'rgba(245,158,11,0.1)',
+            border: '1px solid rgba(245,158,11,0.3)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--warning)', fontWeight: 600 }}>
+              <AlertTriangle size={13} />
+              Confiance {Math.round((item.confidence ?? 0) * 100)}% — vérifiez l'aliment
+              <button
+                onClick={() => setSuggestionsDismissed(true)}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--warning)', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: 2 }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+            {suggestions.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {suggestions.map((food) => (
+                  <button
+                    key={food.id}
+                    onClick={() => handleSuggestionSelect(food)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 'var(--radius-full)',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    {food.name}
+                    <span style={{ color: 'var(--accent-primary)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+                      {food.carbsPer100g}g
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Aucune correspondance dans la BDD
+              </div>
+            )}
+            <button
+              onClick={() => setShowFoodPicker(true)}
+              className="btn btn-secondary"
+              style={{ alignSelf: 'center', padding: '4px 12px', fontSize: 11, gap: 4, marginTop: 2 }}
+            >
+              <Search size={12} /> Voir toute la BDD
+            </button>
           </div>
         )}
 

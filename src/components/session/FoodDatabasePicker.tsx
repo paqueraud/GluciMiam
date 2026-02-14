@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { X, Search } from 'lucide-react';
+import { X, Search, Plus, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { FoodDatabaseEntry } from '../../types';
-import { getAllFoodsSorted } from '../../services/food';
+import { getAllFoodsSorted, addFoodEntry } from '../../services/food';
 
 interface FoodDatabasePickerProps {
   onSelect: (entry: FoodDatabaseEntry) => void;
@@ -15,15 +15,34 @@ export default function FoodDatabasePicker({ onSelect, onClose }: FoodDatabasePi
   const [allFoods, setAllFoods] = useState<FoodDatabaseEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createCarbs, setCreateCarbs] = useState('');
   const letterRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    getAllFoodsSorted().then((foods) => {
-      setAllFoods(foods);
-      setLoading(false);
-    });
+  const reload = useCallback(async () => {
+    const foods = await getAllFoodsSorted();
+    setAllFoods(foods);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const handleCreate = async () => {
+    const name = createName.trim();
+    const carbs = parseFloat(createCarbs);
+    if (!name || isNaN(carbs) || carbs < 0) return;
+    const id = await addFoodEntry({ name, carbsPer100g: carbs, source: 'manual' });
+    const newEntry: FoodDatabaseEntry = { id, name, carbsPer100g: carbs, source: 'manual' };
+    onSelect(newEntry);
+  };
+
+  const openCreateForm = () => {
+    setCreateName(searchQuery);
+    setCreateCarbs('');
+    setShowCreateForm(true);
+  };
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return allFoods;
@@ -145,6 +164,44 @@ export default function FoodDatabasePicker({ onSelect, onClose }: FoodDatabasePi
         </div>
       </div>
 
+      {/* Create form */}
+      {showCreateForm && (
+        <div style={{
+          padding: '12px 16px',
+          borderBottom: '1px solid var(--border-color)',
+          background: 'var(--bg-secondary)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-primary)' }}>Nouvel aliment</div>
+          <input
+            className="input"
+            placeholder="Nom de l'aliment"
+            value={createName}
+            onChange={(e) => setCreateName(e.target.value)}
+            autoFocus
+            style={{ fontSize: 13 }}
+          />
+          <input
+            className="input"
+            type="number"
+            placeholder="Glucides pour 100g"
+            value={createCarbs}
+            onChange={(e) => setCreateCarbs(e.target.value)}
+            style={{ fontSize: 13 }}
+          />
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn btn-secondary" onClick={() => setShowCreateForm(false)} style={{ padding: '6px 14px', fontSize: 12 }}>
+              Annuler
+            </button>
+            <button className="btn btn-primary" onClick={handleCreate} style={{ padding: '6px 14px', fontSize: 12 }}>
+              <Check size={14} /> Créer et sélectionner
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Body: list + alphabet */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Scrollable list */}
@@ -161,61 +218,72 @@ export default function FoodDatabasePicker({ onSelect, onClose }: FoodDatabasePi
               Chargement...
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-              Aucun aliment trouvé
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+              <p>Aucun aliment trouvé</p>
+              <button className="btn btn-primary" onClick={openCreateForm} style={{ padding: '8px 16px', fontSize: 13, gap: 6 }}>
+                <Plus size={14} /> Créer "{searchQuery}"
+              </button>
             </div>
           ) : (
-            availableLetters.map((letter) => (
-              <div key={letter}>
-                <div
-                  ref={(el) => { letterRefs.current[letter] = el; }}
-                  style={{
-                    position: 'sticky',
-                    top: 0,
-                    background: 'var(--bg-primary)',
-                    padding: '8px 0 4px',
-                    fontSize: 13,
-                    fontWeight: 800,
-                    color: 'var(--accent-primary)',
-                    borderBottom: '1px solid var(--border-color)',
-                    zIndex: 1,
-                  }}
-                >
-                  {letter}
-                </div>
-                {grouped[letter].map((food) => (
-                  <button
-                    key={food.id ?? food.name}
-                    onClick={() => onSelect(food)}
+            <>
+              {availableLetters.map((letter) => (
+                <div key={letter}>
+                  <div
+                    ref={(el) => { letterRefs.current[letter] = el; }}
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      width: '100%',
-                      padding: '10px 8px',
-                      background: 'none',
-                      border: 'none',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      cursor: 'pointer',
-                      color: 'var(--text-primary)',
-                      textAlign: 'left',
+                      position: 'sticky',
+                      top: 0,
+                      background: 'var(--bg-primary)',
+                      padding: '8px 0 4px',
                       fontSize: 13,
+                      fontWeight: 800,
+                      color: 'var(--accent-primary)',
+                      borderBottom: '1px solid var(--border-color)',
+                      zIndex: 1,
                     }}
                   >
-                    <span style={{ flex: 1, paddingRight: 12 }}>{food.name}</span>
-                    <span style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 12,
-                      color: 'var(--accent-primary)',
-                      fontWeight: 600,
-                      flexShrink: 0,
-                    }}>
-                      {food.carbsPer100g}g/100g
-                    </span>
-                  </button>
-                ))}
+                    {letter}
+                  </div>
+                  {grouped[letter].map((food) => (
+                    <button
+                      key={food.id ?? food.name}
+                      onClick={() => onSelect(food)}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        width: '100%',
+                        padding: '10px 8px',
+                        background: 'none',
+                        border: 'none',
+                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        cursor: 'pointer',
+                        color: 'var(--text-primary)',
+                        textAlign: 'left',
+                        fontSize: 13,
+                      }}
+                    >
+                      <span style={{ flex: 1, paddingRight: 12 }}>{food.name}</span>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 12,
+                        color: 'var(--accent-primary)',
+                        fontWeight: 600,
+                        flexShrink: 0,
+                      }}>
+                        {food.carbsPer100g}g/100g
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+              {/* Create button at bottom */}
+              <div style={{ padding: '16px 0', textAlign: 'center' }}>
+                <button className="btn btn-secondary" onClick={openCreateForm} style={{ padding: '8px 16px', fontSize: 12, gap: 6 }}>
+                  <Plus size={14} /> Créer un nouvel aliment
+                </button>
               </div>
-            ))
+            </>
           )}
         </div>
 

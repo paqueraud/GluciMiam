@@ -10,11 +10,12 @@ import LLMSettings from './components/settings/LLMSettings';
 import ImportExport from './components/settings/ImportExport';
 import AboutPage from './pages/AboutPage';
 import HelpPage from './pages/HelpPage';
+import FoodDatabasePage from './pages/FoodDatabasePage';
 import { useAppStore } from './stores/appStore';
 import { db } from './db';
 import type { UserProfile } from './types';
 
-type Page = 'home' | 'session' | 'new-user' | 'edit-user' | 'llm-settings' | 'import' | 'export' | 'about' | 'help';
+type Page = 'home' | 'session' | 'new-user' | 'edit-user' | 'llm-settings' | 'import' | 'export' | 'food-db' | 'about' | 'help';
 
 function App() {
   const [page, setPage] = useState<Page>('home');
@@ -67,6 +68,7 @@ function App() {
           {page === 'llm-settings' && <LLMSettings onClose={() => setPage('home')} />}
           {page === 'import' && <ImportExport mode="import" onClose={() => setPage('home')} />}
           {page === 'export' && <ImportExport mode="export" onClose={() => setPage('home')} />}
+          {page === 'food-db' && <FoodDatabasePage onClose={() => setPage('home')} />}
           {page === 'about' && <AboutPage onClose={() => setPage('home')} />}
           {page === 'help' && <HelpPage onClose={() => setPage('home')} />}
         </motion.div>

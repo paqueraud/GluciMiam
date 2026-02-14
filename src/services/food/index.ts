@@ -116,3 +116,15 @@ export async function getFoodDatabaseStats(): Promise<{ total: number; bySource:
   }
   return { total: all.length, bySource };
 }
+
+export async function addFoodEntry(entry: Omit<FoodDatabaseEntry, 'id'>): Promise<number> {
+  return db.foodDatabase.add(entry as FoodDatabaseEntry);
+}
+
+export async function updateFoodEntry(id: number, updates: Partial<FoodDatabaseEntry>): Promise<void> {
+  await db.foodDatabase.update(id, updates);
+}
+
+export async function deleteFoodEntry(id: number): Promise<void> {
+  await db.foodDatabase.delete(id);
+}
