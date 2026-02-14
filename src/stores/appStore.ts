@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { db } from '../db';
-import type { UserProfile, MealSession, FoodItem, LLMConfig } from '../types';
+import type { UserProfile, MealSession, FoodItem, LLMConfig, LLMFoodEntry } from '../types';
+import { saveCacheEntry } from '../services/llm';
 
 interface AppStore {
   // State
@@ -66,7 +67,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   endSession: async () => {
-    const { activeSession, sessionFoodItems } = get();
+    const { activeSession, sessionFoodItems, currentUser } = get();
     if (activeSession?.id) {
       const totalCarbs = sessionFoodItems.reduce(
         (sum, item) => sum + (item.correctedCarbsG ?? item.estimatedCarbsG),
@@ -77,6 +78,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
         endedAt: new Date(),
         totalCarbsG: totalCarbs,
       });
+
+      // Save validated items to image cache (grouped by photo)
+      if (currentUser?.id) {
+        const photoGroups = new Map<string, FoodItem[]>();
+        for (const item of sessionFoodItems) {
+          if (item.confidence === 0 && item.estimatedCarbsG === 0) continue;
+          const existing = photoGroups.get(item.photoBase64) || [];
+          existing.push(item);
+          photoGroups.set(item.photoBase64, existing);
+        }
+        for (const [photoBase64, items] of photoGroups) {
+          const results: LLMFoodEntry[] = items.map((item) => ({
+            foodName: item.detectedFoodName,
+            estimatedWeightG: item.estimatedWeightG,
+            carbsPer100g: item.carbsPer100g ?? 0,
+            totalCarbsG: item.correctedCarbsG ?? item.estimatedCarbsG,
+            confidence: item.confidence ?? 0.5,
+            reasoning: item.llmResponse,
+          }));
+          await saveCacheEntry(photoBase64, currentUser.id, results, new Date(), items[0].userContext);
+        }
+      }
     }
     set({ activeSession: null, sessionFoodItems: [], currentPhotoIndex: 0 });
   },

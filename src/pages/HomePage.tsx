@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../stores/appStore';
 import CameraCapture from '../components/camera/CameraCapture';
 import UserSelector from '../components/user/UserSelector';
-import { analyzeFoodMulti, findCachedAnalysis, saveCacheEntry } from '../services/llm';
+import { analyzeFoodMulti, findCachedAnalysis } from '../services/llm';
 import { db } from '../db';
 import type { ImageCacheEntry, LLMFoodEntry } from '../types';
 
@@ -157,8 +157,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
           confidence: result.confidence,
         });
       }
-      // Save to image cache for future reuse
-      await saveCacheEntry(photoBase64, userId, results, new Date(), userContext);
     } catch (err) {
       const { addFoodItem } = useAppStore.getState();
       await addFoodItem({

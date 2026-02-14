@@ -6,7 +6,7 @@ import Header from '../components/layout/Header';
 import PhotoViewer from '../components/session/PhotoViewer';
 import FoodItemCard from '../components/session/FoodItemCard';
 import CameraCapture from '../components/camera/CameraCapture';
-import { analyzeFoodMulti, findCachedAnalysis, saveCacheEntry } from '../services/llm';
+import { analyzeFoodMulti, findCachedAnalysis } from '../services/llm';
 import type { ImageCacheEntry, LLMFoodEntry } from '../types';
 
 interface SessionPageProps {
@@ -63,7 +63,6 @@ export default function SessionPage({ onNavigate }: SessionPageProps) {
     try {
       const results = await analyzeFoodMulti(photos, currentUser.fingerLengthMm, userContext, currentUser.id);
       await addResults(results, photoBase64, userContext);
-      await saveCacheEntry(photoBase64, currentUser.id!, results, new Date(), userContext);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erreur inconnue';
       setLlmError(errorMsg);
