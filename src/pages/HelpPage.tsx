@@ -260,16 +260,21 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   lightbulb: <Lightbulb size={16} />,
 };
 
-// Extract the visible text fragments from a section in the SAME order
-// that renderContent will render them. This ensures totalMatches and
-// the rendering counter stay in perfect sync.
+function countOccurrences(text: string, queryLower: string): number {
+  if (!queryLower) return 0;
+  const lower = text.toLowerCase();
+  let count = 0;
+  let pos = lower.indexOf(queryLower);
+  while (pos !== -1) { count++; pos = lower.indexOf(queryLower, pos + 1); }
+  return count;
+}
+
 function extractTextFragments(title: string, content: string): string[] {
   const fragments: string[] = [title];
   const lines = content.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+  for (const line of lines) {
+    const trimmed = line.trim();
     if (!trimmed) continue;
-
     const stepMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
     if (stepMatch) { fragments.push(stepMatch[2]); continue; }
     if (trimmed.startsWith('Q : ')) { fragments.push(trimmed); continue; }
@@ -281,79 +286,41 @@ function extractTextFragments(title: string, content: string): string[] {
   return fragments;
 }
 
-function countOccurrences(text: string, queryLower: string): number {
-  if (!queryLower) return 0;
-  const lower = text.toLowerCase();
-  let count = 0;
-  let pos = lower.indexOf(queryLower);
-  while (pos !== -1) {
-    count++;
-    pos = lower.indexOf(queryLower, pos + 1);
-  }
-  return count;
-}
-
-// Pure function (NOT a React component) that highlights search matches in text.
-// Returns { node, matchCount } so the caller can track cumulative global index.
-function highlightText(
-  text: string,
-  queryLower: string,
-  currentGlobalIndex: number,
-  startIndex: number,
-  keyPrefix: string,
-): { node: React.ReactNode; matchCount: number } {
-  if (!queryLower) return { node: text, matchCount: 0 };
-
+// Wrap matches in <mark> with a class. No data attributes, no indices.
+// The DOM-based useEffect will handle current-match styling and scrolling.
+function wrapMatches(text: string, queryLower: string, keyPrefix: string): React.ReactNode {
+  if (!queryLower) return text;
   const lower = text.toLowerCase();
   const parts: React.ReactNode[] = [];
   let lastIdx = 0;
-  let matchCount = 0;
   let pos = lower.indexOf(queryLower);
+  if (pos === -1) return text;
 
   while (pos !== -1) {
-    if (pos > lastIdx) {
-      parts.push(text.slice(lastIdx, pos));
-    }
-
-    const globalIdx = startIndex + matchCount;
-    const isCurrent = globalIdx === currentGlobalIndex;
-    matchCount++;
-
+    if (pos > lastIdx) parts.push(text.slice(lastIdx, pos));
     parts.push(
-      <mark
-        key={`${keyPrefix}-${pos}`}
-        data-match-global={globalIdx}
-        style={{
-          background: isCurrent ? 'rgba(255,220,50,0.5)' : 'rgba(255,220,50,0.18)',
-          color: 'inherit',
-          borderRadius: 3,
-          padding: '1px 3px',
-          fontWeight: isCurrent ? 700 : 'inherit',
-          border: isCurrent ? '2px solid rgba(255,200,0,0.9)' : '1px solid rgba(255,220,50,0.3)',
-          boxShadow: isCurrent
-            ? '0 0 10px rgba(255,220,50,0.7), 0 0 20px rgba(255,200,0,0.35), 0 0 4px rgba(255,220,50,0.9)'
-            : 'none',
-          outline: isCurrent ? '2px solid rgba(255,220,50,0.45)' : 'none',
-          outlineOffset: isCurrent ? '1px' : '0',
-        }}
-      >
+      <mark key={`${keyPrefix}-${pos}`} className="hlp-match" style={{
+        background: 'rgba(255,220,50,0.18)',
+        color: 'inherit',
+        borderRadius: 3,
+        padding: '1px 3px',
+        border: '1px solid rgba(255,220,50,0.3)',
+      }}>
         {text.slice(pos, pos + queryLower.length)}
       </mark>
     );
-
     lastIdx = pos + queryLower.length;
     pos = lower.indexOf(queryLower, lastIdx);
   }
-
-  if (lastIdx === 0) return { node: text, matchCount: 0 };
   if (lastIdx < text.length) parts.push(text.slice(lastIdx));
-  return { node: <>{parts}</>, matchCount };
+  return <>{parts}</>;
 }
 
 export default function HelpPage({ onClose }: HelpPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [domMatchCount, setDomMatchCount] = useState(0);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const contentRef = useRef<HTMLDivElement | null>(null);
 
@@ -366,28 +333,17 @@ export default function HelpPage({ onClose }: HelpPageProps) {
     })),
   []);
 
-  // Compute total matches and per-section start indices using the SAME
-  // text fragments that will be rendered (so counts are always in sync).
-  const { totalMatches, sectionStartIndices, matchingSectionIds } = useMemo(() => {
-    if (!queryLower) return { totalMatches: 0, sectionStartIndices: {} as Record<string, number>, matchingSectionIds: new Set<string>() };
-
-    const starts: Record<string, number> = {};
+  // Determine which sections have matches (for filtering)
+  const matchingSectionIds = useMemo(() => {
+    if (!queryLower) return new Set<string>();
     const ids = new Set<string>();
-    let running = 0;
-
     for (const section of SECTIONS_DATA) {
       const fragments = extractTextFragments(section.title, section.content);
-      let sectionCount = 0;
       for (const frag of fragments) {
-        sectionCount += countOccurrences(frag, queryLower);
-      }
-      if (sectionCount > 0) {
-        starts[section.id] = running;
-        ids.add(section.id);
-        running += sectionCount;
+        if (countOccurrences(frag, queryLower) > 0) { ids.add(section.id); break; }
       }
     }
-    return { totalMatches: running, sectionStartIndices: starts, matchingSectionIds: ids };
+    return ids;
   }, [queryLower]);
 
   const filteredSections = useMemo(() => {
@@ -400,43 +356,72 @@ export default function HelpPage({ onClose }: HelpPageProps) {
     setCurrentMatchIndex(0);
   }, [searchQuery]);
 
-  // Find which section contains the current match, expand it, scroll to it
+  // After every render: count marks in DOM, style the current one, scroll to it
   useEffect(() => {
-    if (totalMatches === 0 || !queryLower) return;
+    const container = contentRef.current;
+    if (!container || !queryLower) { setDomMatchCount(0); return; }
 
-    // Find the section containing the current match
-    let targetSectionId: string | null = null;
-    let bestStart = -1;
-    for (const [sId, start] of Object.entries(sectionStartIndices)) {
-      if (currentMatchIndex >= start && start > bestStart) {
-        bestStart = start;
-        targetSectionId = sId;
-      }
+    // Find ALL mark elements
+    const marks = container.querySelectorAll('mark.hlp-match');
+    setDomMatchCount(marks.length);
+
+    // Reset all marks to default style
+    marks.forEach((mark) => {
+      const el = mark as HTMLElement;
+      el.style.background = 'rgba(255,220,50,0.18)';
+      el.style.border = '1px solid rgba(255,220,50,0.3)';
+      el.style.fontWeight = 'inherit';
+      el.style.boxShadow = 'none';
+      el.style.outline = 'none';
+    });
+
+    // Style the current match
+    if (marks.length > 0 && currentMatchIndex < marks.length) {
+      const current = marks[currentMatchIndex] as HTMLElement;
+      current.style.background = 'rgba(255,220,50,0.55)';
+      current.style.border = '2px solid rgba(255,200,0,0.9)';
+      current.style.fontWeight = '700';
+      current.style.boxShadow = '0 0 10px rgba(255,220,50,0.7), 0 0 20px rgba(255,200,0,0.35), 0 0 4px rgba(255,220,50,0.9)';
+      current.style.outline = '2px solid rgba(255,220,50,0.45)';
+
+      // Scroll to center
+      current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+  });
 
-    if (targetSectionId) {
-      setExpandedSection(targetSectionId);
+  // When currentMatchIndex changes, find which section it's in and expand it
+  useEffect(() => {
+    if (!queryLower || domMatchCount === 0) return;
+    const container = contentRef.current;
+    if (!container) return;
+
+    const marks = container.querySelectorAll('mark.hlp-match');
+    if (currentMatchIndex >= marks.length) return;
+
+    const currentMark = marks[currentMatchIndex];
+    // Find the parent section div
+    const sectionDiv = currentMark.closest('[data-section-id]');
+    if (sectionDiv) {
+      const sectionId = sectionDiv.getAttribute('data-section-id');
+      if (sectionId) setExpandedSection(sectionId);
     }
-
-    // Scroll to the current match after React commits the DOM
-    const timer = setTimeout(() => {
-      const el = contentRef.current?.querySelector(`[data-match-global="${currentMatchIndex}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [currentMatchIndex, totalMatches, queryLower, sectionStartIndices]);
+  }, [currentMatchIndex, queryLower, domMatchCount]);
 
   const goNextMatch = useCallback(() => {
-    if (totalMatches === 0) return;
-    setCurrentMatchIndex((prev) => (prev + 1) % totalMatches);
-  }, [totalMatches]);
+    setCurrentMatchIndex((prev) => {
+      const total = domMatchCount;
+      if (total === 0) return 0;
+      return (prev + 1) % total;
+    });
+  }, [domMatchCount]);
 
   const goPrevMatch = useCallback(() => {
-    if (totalMatches === 0) return;
-    setCurrentMatchIndex((prev) => (prev - 1 + totalMatches) % totalMatches);
-  }, [totalMatches]);
+    setCurrentMatchIndex((prev) => {
+      const total = domMatchCount;
+      if (total === 0) return 0;
+      return (prev - 1 + total) % total;
+    });
+  }, [domMatchCount]);
 
   const scrollToSection = (id: string) => {
     setExpandedSection(id);
@@ -445,23 +430,15 @@ export default function HelpPage({ onClose }: HelpPageProps) {
     }, 100);
   };
 
-  // Render content with highlighting. Returns { node, totalMatchCount }.
-  // Uses highlightText (a pure function, not a component) so indices are deterministic.
-  function renderContentWithHighlight(content: string, startIdx: number): { node: React.ReactNode; totalMatchCount: number } {
+  function renderContent(content: string) {
     const lines = content.split('\n');
-    let runningIdx = startIdx;
     const elements: React.ReactNode[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const trimmed = lines[i].trim();
       if (!trimmed) { elements.push(<div key={i} style={{ height: 8 }} />); continue; }
 
-      // helper: highlight a text fragment and advance running index
-      const hl = (text: string) => {
-        const result = highlightText(text, queryLower, currentMatchIndex, runningIdx, `${i}`);
-        runningIdx += result.matchCount;
-        return result.node;
-      };
+      const hl = (text: string) => wrapMatches(text, queryLower, `l${i}`);
 
       const stepMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
       if (stepMatch) {
@@ -471,9 +448,7 @@ export default function HelpPage({ onClose }: HelpPageProps) {
               width: 22, height: 22, borderRadius: '50%', background: 'var(--accent-primary)',
               color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 1,
-            }}>
-              {stepMatch[1]}
-            </div>
+            }}>{stepMatch[1]}</div>
             <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{hl(stepMatch[2])}</div>
           </div>
         );
@@ -481,22 +456,13 @@ export default function HelpPage({ onClose }: HelpPageProps) {
       }
 
       if (trimmed.startsWith('Q : ')) {
-        elements.push(
-          <div key={i} style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13, marginTop: 8 }}>
-            {hl(trimmed)}
-          </div>
-        );
+        elements.push(<div key={i} style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13, marginTop: 8 }}>{hl(trimmed)}</div>);
         continue;
       }
       if (trimmed.startsWith('R : ')) {
-        elements.push(
-          <div key={i} style={{ paddingLeft: 16, borderLeft: '2px solid var(--border-color)' }}>
-            {hl(trimmed.slice(4))}
-          </div>
-        );
+        elements.push(<div key={i} style={{ paddingLeft: 16, borderLeft: '2px solid var(--border-color)' }}>{hl(trimmed.slice(4))}</div>);
         continue;
       }
-
       if (trimmed.startsWith('Astuce :')) {
         elements.push(
           <div key={i} style={{
@@ -510,7 +476,6 @@ export default function HelpPage({ onClose }: HelpPageProps) {
         );
         continue;
       }
-
       if (trimmed.startsWith('- ')) {
         elements.push(
           <div key={i} style={{ paddingLeft: 16, display: 'flex', gap: 6 }}>
@@ -521,64 +486,41 @@ export default function HelpPage({ onClose }: HelpPageProps) {
         continue;
       }
 
-      // Detect sub-titles
       const nextLine = lines[i + 1]?.trim() || '';
       const isTitle = trimmed.length < 60 && !trimmed.endsWith('.') && !trimmed.endsWith(':')
         && !trimmed.startsWith('-') && nextLine && (nextLine.startsWith('-') || nextLine.length > 40);
       if (isTitle) {
-        elements.push(
-          <div key={i} style={{ color: 'var(--accent-primary)', fontSize: 13, fontWeight: 600, marginTop: 8 }}>
-            {hl(trimmed)}
-          </div>
-        );
+        elements.push(<div key={i} style={{ color: 'var(--accent-primary)', fontSize: 13, fontWeight: 600, marginTop: 8 }}>{hl(trimmed)}</div>);
         continue;
       }
 
       elements.push(<div key={i}>{hl(trimmed)}</div>);
     }
-
-    return {
-      node: <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{elements}</div>,
-      totalMatchCount: runningIdx - startIdx,
-    };
+    return <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{elements}</div>;
   }
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid var(--border-color)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        flexShrink: 0,
+        padding: '12px 16px', borderBottom: '1px solid var(--border-color)',
+        display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
       }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: 4 }}>
           <ArrowLeft size={20} />
         </button>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>
-          Aide
-        </h2>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>Aide</h2>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
           <X size={20} />
         </button>
       </div>
 
       {/* Search bar */}
-      <div style={{
-        padding: '8px 16px',
-        borderBottom: '1px solid var(--border-color)',
-        flexShrink: 0,
-      }}>
+      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          background: 'var(--bg-secondary)',
-          borderRadius: 'var(--radius-md)',
-          padding: '8px 12px',
-          border: '1px solid var(--border-color)',
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
+          padding: '8px 12px', border: '1px solid var(--border-color)',
         }}>
           <Search size={16} color="var(--text-muted)" />
           <input
@@ -587,27 +529,19 @@ export default function HelpPage({ onClose }: HelpPageProps) {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Rechercher dans l'aide..."
             style={{
-              background: 'none',
-              border: 'none',
-              outline: 'none',
-              color: 'var(--text-primary)',
-              fontSize: 14,
-              flex: 1,
-              fontFamily: 'inherit',
+              background: 'none', border: 'none', outline: 'none',
+              color: 'var(--text-primary)', fontSize: 14, flex: 1, fontFamily: 'inherit',
             }}
           />
           {searchQuery && (
             <>
-              {totalMatches > 0 && (
+              {domMatchCount > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                   <span style={{
-                    fontSize: 11,
-                    color: 'var(--accent-primary)',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
+                    fontSize: 11, color: 'var(--accent-primary)',
+                    fontFamily: 'var(--font-mono)', fontWeight: 600, whiteSpace: 'nowrap',
                   }}>
-                    {currentMatchIndex + 1}/{totalMatches}
+                    {currentMatchIndex + 1}/{domMatchCount}
                   </span>
                   <button onClick={goPrevMatch}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex' }}>
@@ -619,7 +553,7 @@ export default function HelpPage({ onClose }: HelpPageProps) {
                   </button>
                 </div>
               )}
-              {totalMatches === 0 && searchQuery.trim() && (
+              {domMatchCount === 0 && searchQuery.trim() && (
                 <span style={{ fontSize: 11, color: 'var(--danger)', whiteSpace: 'nowrap' }}>0 résultat</span>
               )}
               <button onClick={() => setSearchQuery('')}
@@ -640,16 +574,13 @@ export default function HelpPage({ onClose }: HelpPageProps) {
               Sommaire
             </div>
             {sections.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => scrollToSection(s.id)}
+              <button key={s.id} onClick={() => scrollToSection(s.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                   padding: '10px 12px', background: 'none', border: 'none',
                   borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer',
                   color: 'var(--text-primary)', textAlign: 'left', fontSize: 13,
-                }}
-              >
+                }}>
                 <span style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>{s.icon}</span>
                 <span style={{ flex: 1 }}>{s.title}</span>
                 <ChevronRight size={14} color="var(--text-muted)" />
@@ -661,16 +592,11 @@ export default function HelpPage({ onClose }: HelpPageProps) {
         {/* Sections */}
         {filteredSections.map((s) => {
           const isExpanded = expandedSection === s.id || !!queryLower;
-          const sectionStart = sectionStartIndices[s.id] ?? 0;
-
-          // Highlight title
-          const titleResult = highlightText(s.title, queryLower, currentMatchIndex, sectionStart, `title-${s.id}`);
-          const contentStart = sectionStart + titleResult.matchCount;
-
           return (
             <div
               key={s.id}
               ref={(el) => { sectionRefs.current[s.id] = el; }}
+              data-section-id={s.id}
               style={{ marginBottom: 16 }}
             >
               <button
@@ -685,15 +611,9 @@ export default function HelpPage({ onClose }: HelpPageProps) {
                 }}
               >
                 <span style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>{s.icon}</span>
-                <span style={{ flex: 1 }}>{titleResult.node}</span>
-                <ChevronRight
-                  size={14}
-                  color="var(--text-muted)"
-                  style={{
-                    transform: isExpanded ? 'rotate(90deg)' : 'none',
-                    transition: 'transform 0.2s',
-                  }}
-                />
+                <span style={{ flex: 1 }}>{wrapMatches(s.title, queryLower, `t-${s.id}`)}</span>
+                <ChevronRight size={14} color="var(--text-muted)"
+                  style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
               </button>
               {isExpanded && (
                 <div style={{
@@ -701,7 +621,7 @@ export default function HelpPage({ onClose }: HelpPageProps) {
                   lineHeight: 1.6, borderLeft: '2px solid var(--accent-primary)',
                   marginLeft: 20, marginTop: 4,
                 }}>
-                  {renderContentWithHighlight(s.content, contentStart).node}
+                  {renderContent(s.content)}
                 </div>
               )}
             </div>
