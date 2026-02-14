@@ -51,6 +51,9 @@ export default function AboutPage({ onClose }: AboutPageProps) {
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 8 }}>
             Version 1.0.0
           </p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 4 }}>
+            Build : {new Date(__BUILD_DATE__).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </p>
         </div>
 
         {/* Description */}
