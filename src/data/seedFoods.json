@@ -1,0 +1,2150 @@
+[
+  {
+    "name": "abbracci",
+    "carbsPer100g": 63
+  },
+  {
+    "name": "abricot",
+    "carbsPer100g": 9
+  },
+  {
+    "name": "amandes grillées",
+    "carbsPer100g": 5.3
+  },
+  {
+    "name": "ananas",
+    "carbsPer100g": 11.7
+  },
+  {
+    "name": "asperges",
+    "carbsPer100g": 1
+  },
+  {
+    "name": "asperges vertes cuite à l'eau",
+    "carbsPer100g": 1.73
+  },
+  {
+    "name": "avocat",
+    "carbsPer100g": 4
+  },
+  {
+    "name": "babybio biscuits fondants",
+    "carbsPer100g": 73
+  },
+  {
+    "name": "babybio pomme abricot banane",
+    "carbsPer100g": 13
+  },
+  {
+    "name": "baiocchi",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "banana bread companion",
+    "carbsPer100g": 48.55
+  },
+  {
+    "name": "banane",
+    "carbsPer100g": 23
+  },
+  {
+    "name": "banane séchée",
+    "carbsPer100g": 58
+  },
+  {
+    "name": "barquette lu fraise",
+    "carbsPer100g": 78
+  },
+  {
+    "name": "barre céré riz choc grany (20,8)",
+    "carbsPer100g": 69
+  },
+  {
+    "name": "barre céré. Choc. Carouf (21g/b)",
+    "carbsPer100g": 70
+  },
+  {
+    "name": "barre grany ama - caram (21g/b)",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "barre grany chocolat (21g/b)",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "barre grany frai & fram. (18g/b)",
+    "carbsPer100g": 69
+  },
+  {
+    "name": "barre grany riz choc (21g/b)",
+    "carbsPer100g": 69
+  },
+  {
+    "name": "barre lion (25g)",
+    "carbsPer100g": 62.8
+  },
+  {
+    "name": "barre maxi choco nesquick (25g)",
+    "carbsPer100g": 58.2
+  },
+  {
+    "name": "beignet",
+    "carbsPer100g": 47
+  },
+  {
+    "name": "betterave",
+    "carbsPer100g": 7.13
+  },
+  {
+    "name": "biscotte",
+    "carbsPer100g": 72
+  },
+  {
+    "name": "biscuit chocolat bébé (5,5g/U)",
+    "carbsPer100g": 72.9
+  },
+  {
+    "name": "biscuit cuillers (8g)",
+    "carbsPer100g": 74
+  },
+  {
+    "name": "biscuit fondant bebe 2bisc: 10g)",
+    "carbsPer100g": 73
+  },
+  {
+    "name": "biscuit Nutella",
+    "carbsPer100g": 63.3
+  },
+  {
+    "name": "biscuit oreo original (11g/u)",
+    "carbsPer100g": 68
+  },
+  {
+    "name": "biscuit pan di stella",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "biscuit rond vanille",
+    "carbsPer100g": 74
+  },
+  {
+    "name": "biscuits b-ready Nut (22g)",
+    "carbsPer100g": 60.7
+  },
+  {
+    "name": "bjorg ptit nature",
+    "carbsPer100g": 72
+  },
+  {
+    "name": "blé/boulgour",
+    "carbsPer100g": 20
+  },
+  {
+    "name": "blettes cuites",
+    "carbsPer100g": 1.43
+  },
+  {
+    "name": "blinis coktail (10g)",
+    "carbsPer100g": 32
+  },
+  {
+    "name": "bonbon croco pik",
+    "carbsPer100g": 81
+  },
+  {
+    "name": "bonbon crocodile 3g",
+    "carbsPer100g": 62
+  },
+  {
+    "name": "bonbon haribo oursons",
+    "carbsPer100g": 77
+  },
+  {
+    "name": "bonbon krema",
+    "carbsPer100g": 83
+  },
+  {
+    "name": "bonbon ours mini",
+    "carbsPer100g": 77
+  },
+  {
+    "name": "boudoir",
+    "carbsPer100g": 82
+  },
+  {
+    "name": "boulghour",
+    "carbsPer100g": 15
+  },
+  {
+    "name": "brioche chocolat",
+    "carbsPer100g": 46
+  },
+  {
+    "name": "brioche tressée carrouf",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "briochette",
+    "carbsPer100g": 52
+  },
+  {
+    "name": "brique choco lait 200g",
+    "carbsPer100g": 11
+  },
+  {
+    "name": "brocoli",
+    "carbsPer100g": 1
+  },
+  {
+    "name": "browkie (brownie/cookie)",
+    "carbsPer100g": 49.6
+  },
+  {
+    "name": "brownies Brossard pocket (30g/u)",
+    "carbsPer100g": 46
+  },
+  {
+    "name": "broyé du poitou",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "cake au thon carouf",
+    "carbsPer100g": 14
+  },
+  {
+    "name": "cake d'amour nutella",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "cake d'amour sucre glace/nutella",
+    "carbsPer100g": 62
+  },
+  {
+    "name": "cake legume carouf",
+    "carbsPer100g": 16
+  },
+  {
+    "name": "calissons",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "candy up - 30% sucre (200)",
+    "carbsPer100g": 7
+  },
+  {
+    "name": "candy'up chocolat",
+    "carbsPer100g": 10
+  },
+  {
+    "name": "canestrini 9g",
+    "carbsPer100g": 68
+  },
+  {
+    "name": "caprisun",
+    "carbsPer100g": 8.1
+  },
+  {
+    "name": "Carambar caramel mini (4g)",
+    "carbsPer100g": 79
+  },
+  {
+    "name": "carambar fruit mini (4g)",
+    "carbsPer100g": 86
+  },
+  {
+    "name": "carottes",
+    "carbsPer100g": 5
+  },
+  {
+    "name": "carottes crue",
+    "carbsPer100g": 7.59
+  },
+  {
+    "name": "céréales charles muesli 3 choc",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "céréales coco pops",
+    "carbsPer100g": 84
+  },
+  {
+    "name": "céréales étoiles choco bjorg",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "céréales froot loops Kellogg's",
+    "carbsPer100g": 79
+  },
+  {
+    "name": "céréales frosties",
+    "carbsPer100g": 87
+  },
+  {
+    "name": "céréales jordans country crisp",
+    "carbsPer100g": 64
+  },
+  {
+    "name": "céréales lion cara choc",
+    "carbsPer100g": 73.8
+  },
+  {
+    "name": "céréales Nesquik",
+    "carbsPer100g": 76.6
+  },
+  {
+    "name": "céréales oreo's",
+    "carbsPer100g": 80
+  },
+  {
+    "name": "cerise dénoyautée",
+    "carbsPer100g": 13
+  },
+  {
+    "name": "chamalow",
+    "carbsPer100g": 80
+  },
+  {
+    "name": "chantilly isigny",
+    "carbsPer100g": 11
+  },
+  {
+    "name": "charlotte a la framboise",
+    "carbsPer100g": 25.8
+  },
+  {
+    "name": "charlotte au fraise maud",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "Charlotte chocolat mamiline",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "châtaignes grillées",
+    "carbsPer100g": 47.9
+  },
+  {
+    "name": "cheeseburger macdo",
+    "carbsPer100g": 26
+  },
+  {
+    "name": "cheetos crispyball",
+    "carbsPer100g": 61
+  },
+  {
+    "name": "cheetos original",
+    "carbsPer100g": 64
+  },
+  {
+    "name": "chicche (9,5g)",
+    "carbsPer100g": 57
+  },
+  {
+    "name": "chips",
+    "carbsPer100g": 51.1
+  },
+  {
+    "name": "chips crevettes picard",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "chocapic",
+    "carbsPer100g": 73
+  },
+  {
+    "name": "choco bar paw patrol (30g/u)",
+    "carbsPer100g": 63
+  },
+  {
+    "name": "chocolat au lait",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "chocolat noir",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "chocolat noir 70%",
+    "carbsPer100g": 32.2
+  },
+  {
+    "name": "chocolat Pâques",
+    "carbsPer100g": 48
+  },
+  {
+    "name": "chou de Bruxelles",
+    "carbsPer100g": 4.5
+  },
+  {
+    "name": "chou fleur",
+    "carbsPer100g": 6
+  },
+  {
+    "name": "chou fleur cru",
+    "carbsPer100g": 2.13
+  },
+  {
+    "name": "chouquettes",
+    "carbsPer100g": 42.6
+  },
+  {
+    "name": "ciambella gateau Irène",
+    "carbsPer100g": 51
+  },
+  {
+    "name": "cigarettes russes",
+    "carbsPer100g": 63.3
+  },
+  {
+    "name": "clafoutis cerises",
+    "carbsPer100g": 25
+  },
+  {
+    "name": "clafoutis cerises companion",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "clafoutis cerises Viviane",
+    "carbsPer100g": 24.1
+  },
+  {
+    "name": "clementine/mandarine",
+    "carbsPer100g": 9.17
+  },
+  {
+    "name": "coca cola",
+    "carbsPer100g": 10.9
+  },
+  {
+    "name": "compote",
+    "carbsPer100g": 15
+  },
+  {
+    "name": "compote châtaigne pomme",
+    "carbsPer100g": 31
+  },
+  {
+    "name": "compote sans sucre ajouté",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "concombre",
+    "carbsPer100g": 2.3
+  },
+  {
+    "name": "confiture de figues 2018",
+    "carbsPer100g": 66.6
+  },
+  {
+    "name": "confiture gratte-cul",
+    "carbsPer100g": 58
+  },
+  {
+    "name": "cookie moel choc lait",
+    "carbsPer100g": 63
+  },
+  {
+    "name": "cookie pepite chocolat carouf",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "cordon bleu dinde gaulois (100g)",
+    "carbsPer100g": 14
+  },
+  {
+    "name": "cornet glace 12.5",
+    "carbsPer100g": 81
+  },
+  {
+    "name": "coucous semi complet Alpina",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "coulis fraise",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "courge",
+    "carbsPer100g": 5
+  },
+  {
+    "name": "courgette cuite purée",
+    "carbsPer100g": 6.5
+  },
+  {
+    "name": "courgettes crue",
+    "carbsPer100g": 1.8
+  },
+  {
+    "name": "couscous complet Alpina",
+    "carbsPer100g": 28
+  },
+  {
+    "name": "couscous nature",
+    "carbsPer100g": 23
+  },
+  {
+    "name": "crac&moi framboise (31g)",
+    "carbsPer100g": 49
+  },
+  {
+    "name": "cracotte chocolat 17g",
+    "carbsPer100g": 67
+  },
+  {
+    "name": "cracotte lu original",
+    "carbsPer100g": 78
+  },
+  {
+    "name": "crakeo",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "creme anglaise maud",
+    "carbsPer100g": 17
+  },
+  {
+    "name": "crème brûlée",
+    "carbsPer100g": 16
+  },
+  {
+    "name": "crème croquante vanille (85g)",
+    "carbsPer100g": 17.2
+  },
+  {
+    "name": "crème de marrons",
+    "carbsPer100g": 63.6
+  },
+  {
+    "name": "crème fraîche",
+    "carbsPer100g": 3.2
+  },
+  {
+    "name": "crème vanille les 2 vaches (95g)",
+    "carbsPer100g": 18.4
+  },
+  {
+    "name": "crepe bonne maman choco nois (32g)",
+    "carbsPer100g": 58
+  },
+  {
+    "name": "crêpe whaou choco (32g)",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "crêpe whaou choco noisette (32g)",
+    "carbsPer100g": 55
+  },
+  {
+    "name": "crêpes dentelle nature picard",
+    "carbsPer100g": 80
+  },
+  {
+    "name": "crepes maison",
+    "carbsPer100g": 20
+  },
+  {
+    "name": "crepes picard jambon emantal",
+    "carbsPer100g": 14
+  },
+  {
+    "name": "croc color (120g)",
+    "carbsPer100g": 23
+  },
+  {
+    "name": "croissant",
+    "carbsPer100g": 47.6
+  },
+  {
+    "name": "croquettes de pommes de terre",
+    "carbsPer100g": 24
+  },
+  {
+    "name": "croustade au pralin",
+    "carbsPer100g": 36
+  },
+  {
+    "name": "crousty buns st michel 19g",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "cruesli",
+    "carbsPer100g": 62
+  },
+  {
+    "name": "curly mendy",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "danette chocolat 125g",
+    "carbsPer100g": 19.9
+  },
+  {
+    "name": "danette pop 120g",
+    "carbsPer100g": 26.9
+  },
+  {
+    "name": "danette pop vanille (120g)",
+    "carbsPer100g": 24.6
+  },
+  {
+    "name": "danette p'tite 70g",
+    "carbsPer100g": 18
+  },
+  {
+    "name": "danette vanille 125g",
+    "carbsPer100g": 17.1
+  },
+  {
+    "name": "dinosaures Mathilde",
+    "carbsPer100g": 73
+  },
+  {
+    "name": "dinosaurus",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "doonuts (30g)",
+    "carbsPer100g": 55
+  },
+  {
+    "name": "dragibus",
+    "carbsPer100g": 92
+  },
+  {
+    "name": "ebly",
+    "carbsPer100g": 27
+  },
+  {
+    "name": "éclair chocolat",
+    "carbsPer100g": 31
+  },
+  {
+    "name": "epinards",
+    "carbsPer100g": 1
+  },
+  {
+    "name": "épinards à la crème carrefour",
+    "carbsPer100g": 2.8
+  },
+  {
+    "name": "escalope milanaise le picoreur (90g)",
+    "carbsPer100g": 16.4
+  },
+  {
+    "name": "Ferrero Rocher (14g/pièce)",
+    "carbsPer100g": 44.4
+  },
+  {
+    "name": "feuilletés ketchup fromage",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "fingers",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "fingers blanc carrefour",
+    "carbsPer100g": 61
+  },
+  {
+    "name": "flageolets",
+    "carbsPer100g": 11.7
+  },
+  {
+    "name": "flan Mamivie",
+    "carbsPer100g": 15.9
+  },
+  {
+    "name": "flanby 100g",
+    "carbsPer100g": 20.8
+  },
+  {
+    "name": "fondant chocolat cardamome",
+    "carbsPer100g": 38.8
+  },
+  {
+    "name": "fondant chocolat picard",
+    "carbsPer100g": 42
+  },
+  {
+    "name": "forêt noire",
+    "carbsPer100g": 34
+  },
+  {
+    "name": "fraise",
+    "carbsPer100g": 6.03
+  },
+  {
+    "name": "fraise tagada petite",
+    "carbsPer100g": 88
+  },
+  {
+    "name": "framboise",
+    "carbsPer100g": 5.83
+  },
+  {
+    "name": "frangipane",
+    "carbsPer100g": 33.4
+  },
+  {
+    "name": "frites",
+    "carbsPer100g": 35
+  },
+  {
+    "name": "frites mc cain",
+    "carbsPer100g": 25
+  },
+  {
+    "name": "frites McCain Express",
+    "carbsPer100g": 31
+  },
+  {
+    "name": "fromage blanc",
+    "carbsPer100g": 3.2
+  },
+  {
+    "name": "fromage blanc 7,6 carrouf",
+    "carbsPer100g": 4.3
+  },
+  {
+    "name": "fromage frais kids",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "gache pépites chocolat",
+    "carbsPer100g": 44
+  },
+  {
+    "name": "galette bretonne carrefour",
+    "carbsPer100g": 66
+  },
+  {
+    "name": "galette bretonne saint michel 6,5g",
+    "carbsPer100g": 74
+  },
+  {
+    "name": "galette jambon fromage tipiak (125g)",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "gareau chocolat Mamiline",
+    "carbsPer100g": 52
+  },
+  {
+    "name": "gâteau au chocolat Viviane",
+    "carbsPer100g": 45.2
+  },
+  {
+    "name": "gâteau au sucre",
+    "carbsPer100g": 43.78075471698113
+  },
+  {
+    "name": "gâteau aux marrons",
+    "carbsPer100g": 51.2
+  },
+  {
+    "name": "gateau camille de mamiline",
+    "carbsPer100g": 40
+  },
+  {
+    "name": "gateau chinois foirnee dorée",
+    "carbsPer100g": 47
+  },
+  {
+    "name": "gâteau choc amande companion",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "gâteau choc lait Nestlé",
+    "carbsPer100g": 42.47
+  },
+  {
+    "name": "gâteau choco courgettes companion",
+    "carbsPer100g": 40
+  },
+  {
+    "name": "gâteau choco mascarpone",
+    "carbsPer100g": 31.5
+  },
+  {
+    "name": "gâteau chocolat bizarre",
+    "carbsPer100g": 49
+  },
+  {
+    "name": "gâteau ciambella",
+    "carbsPer100g": 51
+  },
+  {
+    "name": "gâteau courgette pomme",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "gateau creme de marrons",
+    "carbsPer100g": 45
+  },
+  {
+    "name": "gateau lapinou carouf 28g",
+    "carbsPer100g": 52
+  },
+  {
+    "name": "gateau leibniz zoo",
+    "carbsPer100g": 71
+  },
+  {
+    "name": "gateau maison chocolat noir corsé",
+    "carbsPer100g": 32
+  },
+  {
+    "name": "gâteau marbré",
+    "carbsPer100g": 42.6
+  },
+  {
+    "name": "gateau marbré carrouf",
+    "carbsPer100g": 49
+  },
+  {
+    "name": "gâteau marbré cœur fondant St Michel",
+    "carbsPer100g": 49
+  },
+  {
+    "name": "gateau milka cake et choc (35g/pièce)",
+    "carbsPer100g": 56.5
+  },
+  {
+    "name": "gâteau napolitain (30g/u)",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "gateau yaourt",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "gaufre",
+    "carbsPer100g": 38
+  },
+  {
+    "name": "gaufre de Mathilde",
+    "carbsPer100g": 39
+  },
+  {
+    "name": "gaufre perles sucre (40g)",
+    "carbsPer100g": 55.9
+  },
+  {
+    "name": "gaufre sucre glace lotus",
+    "carbsPer100g": 49
+  },
+  {
+    "name": "gaufres de ma femme",
+    "carbsPer100g": 50.6
+  },
+  {
+    "name": "gaufres sans sucre",
+    "carbsPer100g": 33
+  },
+  {
+    "name": "gaufrette amusante vanille 15g",
+    "carbsPer100g": 67
+  },
+  {
+    "name": "gaufrette cacao top budget(12g les deux)",
+    "carbsPer100g": 63
+  },
+  {
+    "name": "gaufrette fourrée vanille",
+    "carbsPer100g": 57
+  },
+  {
+    "name": "gaufrettes fines carrouf choco noisette",
+    "carbsPer100g": 64
+  },
+  {
+    "name": "gaufrettes framboise chabior",
+    "carbsPer100g": 83.6
+  },
+  {
+    "name": "gaufrettes Wafers choco lait",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "gazpacho alvalle",
+    "carbsPer100g": 3.9
+  },
+  {
+    "name": "glac mini almond remix 40g",
+    "carbsPer100g": 32
+  },
+  {
+    "name": "glace citro coco ananas carouf 75g",
+    "carbsPer100g": 39
+  },
+  {
+    "name": "glace extrême lemon (71g)",
+    "carbsPer100g": 41
+  },
+  {
+    "name": "glace extrême macaron caramel beurre salé 70g",
+    "carbsPer100g": 39
+  },
+  {
+    "name": "glace extreme mangue (79g)",
+    "carbsPer100g": 39
+  },
+  {
+    "name": "glace extrême mini caramel (39g)",
+    "carbsPer100g": 44
+  },
+  {
+    "name": "glace frozen 38g",
+    "carbsPer100g": 35
+  },
+  {
+    "name": "glace fusée picard 62g",
+    "carbsPer100g": 20
+  },
+  {
+    "name": "glace fusee pirulo (45)",
+    "carbsPer100g": 17
+  },
+  {
+    "name": "glace haagen-dazs nut brittle (81g pot)",
+    "carbsPer100g": 25.1
+  },
+  {
+    "name": "glace magnum gold caramel (47g)",
+    "carbsPer100g": 38
+  },
+  {
+    "name": "glace mini cups",
+    "carbsPer100g": 26
+  },
+  {
+    "name": "glace mini double caramel",
+    "carbsPer100g": 36
+  },
+  {
+    "name": "glace mini happy pirulo (40)",
+    "carbsPer100g": 20
+  },
+  {
+    "name": "glace mini magnum amande (46g)",
+    "carbsPer100g": 32
+  },
+  {
+    "name": "glace mini tropical pirulo (65)",
+    "carbsPer100g": 18
+  },
+  {
+    "name": "glace minimilka 17g",
+    "carbsPer100g": 44
+  },
+  {
+    "name": "glace mix pirulo Carrefour",
+    "carbsPer100g": 20
+  },
+  {
+    "name": "glace nuii coco mango",
+    "carbsPer100g": 35
+  },
+  {
+    "name": "glace Nutella",
+    "carbsPer100g": 29.8
+  },
+  {
+    "name": "glace oasis sorbet tropical (40g/u)",
+    "carbsPer100g": 28
+  },
+  {
+    "name": "glace pastèque",
+    "carbsPer100g": 18
+  },
+  {
+    "name": "glace peche maison",
+    "carbsPer100g": 27.3
+  },
+  {
+    "name": "glace picard mini vanille caramel",
+    "carbsPer100g": 34
+  },
+  {
+    "name": "glace popup smarties (52g)",
+    "carbsPer100g": 31
+  },
+  {
+    "name": "glace sea adventure (51)",
+    "carbsPer100g": 25.3
+  },
+  {
+    "name": "glace snickers crisp (36)",
+    "carbsPer100g": 34
+  },
+  {
+    "name": "glace spiderman 35g",
+    "carbsPer100g": 24
+  },
+  {
+    "name": "glace twister",
+    "carbsPer100g": 22
+  },
+  {
+    "name": "glace vanille haagen-dazs",
+    "carbsPer100g": 19.9
+  },
+  {
+    "name": "glace vanille MacDo (49)",
+    "carbsPer100g": 22
+  },
+  {
+    "name": "glace yeti (48,5g/u)",
+    "carbsPer100g": 18
+  },
+  {
+    "name": "glace yeti 55g",
+    "carbsPer100g": 18
+  },
+  {
+    "name": "gnocchi",
+    "carbsPer100g": 32
+  },
+  {
+    "name": "gnocchi lustucru fromage",
+    "carbsPer100g": 29
+  },
+  {
+    "name": "gnocchis de pommes de terre",
+    "carbsPer100g": 19
+  },
+  {
+    "name": "gnocchis pastier",
+    "carbsPer100g": 40
+  },
+  {
+    "name": "gnocci à poeler lustucru",
+    "carbsPer100g": 35
+  },
+  {
+    "name": "gougères",
+    "carbsPer100g": 16.9
+  },
+  {
+    "name": "granita peche abricot",
+    "carbsPer100g": 20
+  },
+  {
+    "name": "granola l'original barre cookie (28g)",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "granola original",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "gressin",
+    "carbsPer100g": 64
+  },
+  {
+    "name": "hamburger MacDo",
+    "carbsPer100g": 29
+  },
+  {
+    "name": "haricot flageolet",
+    "carbsPer100g": 12.2
+  },
+  {
+    "name": "haricots",
+    "carbsPer100g": 5
+  },
+  {
+    "name": "helenettes",
+    "carbsPer100g": 48.25
+  },
+  {
+    "name": "houmous",
+    "carbsPer100g": 8
+  },
+  {
+    "name": "ice tea pêche",
+    "carbsPer100g": 4.6
+  },
+  {
+    "name": "julienne de legumes",
+    "carbsPer100g": 6
+  },
+  {
+    "name": "jungle trip chocolat carrouf",
+    "carbsPer100g": 64
+  },
+  {
+    "name": "jus cranberry",
+    "carbsPer100g": 8.1
+  },
+  {
+    "name": "jus de fruit bio carouf kids 200g",
+    "carbsPer100g": 8.1
+  },
+  {
+    "name": "jus de fruits",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "jus de fruits sans sucre",
+    "carbsPer100g": 8
+  },
+  {
+    "name": "kango (18g)",
+    "carbsPer100g": 57
+  },
+  {
+    "name": "ketchup",
+    "carbsPer100g": 25.3
+  },
+  {
+    "name": "kids lapinou (30g)",
+    "carbsPer100g": 52
+  },
+  {
+    "name": "kids mini roulé choco carrouf 25g",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "kids mini roulé fraise carrouf 25g",
+    "carbsPer100g": 69
+  },
+  {
+    "name": "kinder cards (27 le paquet)",
+    "carbsPer100g": 55.5
+  },
+  {
+    "name": "kinder choco fresh (20,5g)",
+    "carbsPer100g": 40.2
+  },
+  {
+    "name": "kinder country (23,5)",
+    "carbsPer100g": 55
+  },
+  {
+    "name": "kinder delice (39g)",
+    "carbsPer100g": 58.8
+  },
+  {
+    "name": "kinder duo (12,5)",
+    "carbsPer100g": 59.8
+  },
+  {
+    "name": "kinder joy (20g)",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "Kinder maxi (21g)",
+    "carbsPer100g": 53.5
+  },
+  {
+    "name": "kinder pinguin (30g)",
+    "carbsPer100g": 41.5
+  },
+  {
+    "name": "kinder schocobon 5g",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "kinder surprise (20g)",
+    "carbsPer100g": 52.3
+  },
+  {
+    "name": "Kinder tronky (18g)",
+    "carbsPer100g": 57
+  },
+  {
+    "name": "kinderini (12,5g)",
+    "carbsPer100g": 66.8
+  },
+  {
+    "name": "kiri",
+    "carbsPer100g": 22
+  },
+  {
+    "name": "kit-kat",
+    "carbsPer100g": 58.3
+  },
+  {
+    "name": "kiwi",
+    "carbsPer100g": 11
+  },
+  {
+    "name": "knacki",
+    "carbsPer100g": 2
+  },
+  {
+    "name": "lait",
+    "carbsPer100g": 4.83
+  },
+  {
+    "name": "lait croissance candia choc",
+    "carbsPer100g": 8.2
+  },
+  {
+    "name": "langue de chat",
+    "carbsPer100g": 79
+  },
+  {
+    "name": "lasagnes",
+    "carbsPer100g": 14
+  },
+  {
+    "name": "lentilles",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "lettres saint eloi",
+    "carbsPer100g": 21.9
+  },
+  {
+    "name": "lulu",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "lunettes à la fraise",
+    "carbsPer100g": 68
+  },
+  {
+    "name": "m and ms",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "macaroné rosace de noel ranou",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "macarons picard",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "maccaron",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "maccaron carrefour",
+    "carbsPer100g": 71
+  },
+  {
+    "name": "madeleine longue marbrées (12)",
+    "carbsPer100g": 54
+  },
+  {
+    "name": "madeleine longues perles de sucre",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "madeleine pep choc st michel (16g)",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "magnum sel caramel amande",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "maïs",
+    "carbsPer100g": 10.8
+  },
+  {
+    "name": "maltersers",
+    "carbsPer100g": 61
+  },
+  {
+    "name": "maoam",
+    "carbsPer100g": 84
+  },
+  {
+    "name": "marbré companion",
+    "carbsPer100g": 54
+  },
+  {
+    "name": "marronsuisse (68,8g)",
+    "carbsPer100g": 36.4
+  },
+  {
+    "name": "mars",
+    "carbsPer100g": 71
+  },
+  {
+    "name": "mélange gourmand corail",
+    "carbsPer100g": 21
+  },
+  {
+    "name": "melon",
+    "carbsPer100g": 14.8
+  },
+  {
+    "name": "melon",
+    "carbsPer100g": 6
+  },
+  {
+    "name": "meringue",
+    "carbsPer100g": 95
+  },
+  {
+    "name": "miel",
+    "carbsPer100g": 80
+  },
+  {
+    "name": "miel pops",
+    "carbsPer100g": 85
+  },
+  {
+    "name": "mikado au lait",
+    "carbsPer100g": 70
+  },
+  {
+    "name": "milka cake&choc (35g)",
+    "carbsPer100g": 56.5
+  },
+  {
+    "name": "milka choc & choc (25g)",
+    "carbsPer100g": 58
+  },
+  {
+    "name": "milka choco grain (15g)",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "milka choco moo'elleux (28g)",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "milka choco surprise (30g/pc)",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "milka choco wafer (30g/u)",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "milka mini stars (37,5g/paquet)",
+    "carbsPer100g": 62
+  },
+  {
+    "name": "mini baguette à la romate",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "mini bn",
+    "carbsPer100g": 67.5
+  },
+  {
+    "name": "mini cannelés",
+    "carbsPer100g": 42.3
+  },
+  {
+    "name": "mini gâteaux fourrage fraise",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "mini magnum classic",
+    "carbsPer100g": 31
+  },
+  {
+    "name": "mini moelleux fraise",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "mini roulé choco carrouf 27g",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "mini-crêpe picard",
+    "carbsPer100g": 29
+  },
+  {
+    "name": "mix-in smarties fraise",
+    "carbsPer100g": 15.4
+  },
+  {
+    "name": "mochi picard",
+    "carbsPer100g": 41
+  },
+  {
+    "name": "moel choc farine companion",
+    "carbsPer100g": 43
+  },
+  {
+    "name": "moelleux au chocolat Manou",
+    "carbsPer100g": 51.4
+  },
+  {
+    "name": "mon 1er petit beurre au chocolat",
+    "carbsPer100g": 76
+  },
+  {
+    "name": "mon premier boudoir",
+    "carbsPer100g": 76
+  },
+  {
+    "name": "monster munch",
+    "carbsPer100g": 66
+  },
+  {
+    "name": "monster munch crazy",
+    "carbsPer100g": 62
+  },
+  {
+    "name": "mousse au chocolat",
+    "carbsPer100g": 22.3
+  },
+  {
+    "name": "mousse aux fruits",
+    "carbsPer100g": 5.5
+  },
+  {
+    "name": "muesli carouf chocolat noisettes",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "muesli croustillant T&C Avoine Amande Choc",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "muesli graines anciennes Charles Vignon",
+    "carbsPer100g": 55
+  },
+  {
+    "name": "muffin banane chocolat",
+    "carbsPer100g": 52
+  },
+  {
+    "name": "muffin chocolat",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "muffins citron coco ss lactose",
+    "carbsPer100g": 62
+  },
+  {
+    "name": "muffins courgettes parmesan",
+    "carbsPer100g": 27
+  },
+  {
+    "name": "napolitain",
+    "carbsPer100g": 57
+  },
+  {
+    "name": "naturnes neslé bio",
+    "carbsPer100g": 76
+  },
+  {
+    "name": "navette",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "nesquick",
+    "carbsPer100g": 78.9
+  },
+  {
+    "name": "Nesquik all natural tout prêt",
+    "carbsPer100g": 7.5
+  },
+  {
+    "name": "noix",
+    "carbsPer100g": 6.88
+  },
+  {
+    "name": "noix de cajoux",
+    "carbsPer100g": 18
+  },
+  {
+    "name": "noix de coco séchée",
+    "carbsPer100g": 8.55
+  },
+  {
+    "name": "nougat",
+    "carbsPer100g": 58
+  },
+  {
+    "name": "nougat",
+    "carbsPer100g": 58
+  },
+  {
+    "name": "nuggets findus",
+    "carbsPer100g": 22
+  },
+  {
+    "name": "nuggets le gaulois",
+    "carbsPer100g": 15
+  },
+  {
+    "name": "nuggets Mac Do (17,5)",
+    "carbsPer100g": 19
+  },
+  {
+    "name": "nuggets picard",
+    "carbsPer100g": 14
+  },
+  {
+    "name": "nutella",
+    "carbsPer100g": 57.5
+  },
+  {
+    "name": "nutella b ready 22g",
+    "carbsPer100g": 60.7
+  },
+  {
+    "name": "oasis",
+    "carbsPer100g": 8.3
+  },
+  {
+    "name": "opera",
+    "carbsPer100g": 40
+  },
+  {
+    "name": "orange",
+    "carbsPer100g": 8.3
+  },
+  {
+    "name": "oreillette du Languedoc",
+    "carbsPer100g": 51
+  },
+  {
+    "name": "oreo",
+    "carbsPer100g": 68
+  },
+  {
+    "name": "paille d'or",
+    "carbsPer100g": 84
+  },
+  {
+    "name": "pain",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "pain au chocolat",
+    "carbsPer100g": 45.4
+  },
+  {
+    "name": "pain au chocolat Pasquier",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "pain au lait",
+    "carbsPer100g": 55
+  },
+  {
+    "name": "pain au maïs",
+    "carbsPer100g": 77
+  },
+  {
+    "name": "pain aux raisins",
+    "carbsPer100g": 55.9
+  },
+  {
+    "name": "pain de mie",
+    "carbsPer100g": 52.3
+  },
+  {
+    "name": "pain de mie extra moel SSA (17,5)",
+    "carbsPer100g": 47.1
+  },
+  {
+    "name": "pain de mie sans sucre ajouté (25g)",
+    "carbsPer100g": 45
+  },
+  {
+    "name": "pain d'epices",
+    "carbsPer100g": 71
+  },
+  {
+    "name": "pain grillé",
+    "carbsPer100g": 64
+  },
+  {
+    "name": "pain grillé (petit)",
+    "carbsPer100g": 66
+  },
+  {
+    "name": "pain grillé froment carrouf bio",
+    "carbsPer100g": 73
+  },
+  {
+    "name": "pain hamburger",
+    "carbsPer100g": 49.4
+  },
+  {
+    "name": "pain pita",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "palets bretons carouf",
+    "carbsPer100g": 62
+  },
+  {
+    "name": "palmier saint Michel",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "palmiers chabrior",
+    "carbsPer100g": 62.9
+  },
+  {
+    "name": "pamplemousse",
+    "carbsPer100g": 8.02
+  },
+  {
+    "name": "pan di stelle crema",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "pancakes",
+    "carbsPer100g": 51
+  },
+  {
+    "name": "pancakes Mat",
+    "carbsPer100g": 37
+  },
+  {
+    "name": "pancakes pasquier 35g",
+    "carbsPer100g": 46
+  },
+  {
+    "name": "pancakes picard",
+    "carbsPer100g": 39
+  },
+  {
+    "name": "pandoro",
+    "carbsPer100g": 49
+  },
+  {
+    "name": "pandoro",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "panettone",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "panisse",
+    "carbsPer100g": 16.5
+  },
+  {
+    "name": "paris brest",
+    "carbsPer100g": 26.1
+  },
+  {
+    "name": "pastèque",
+    "carbsPer100g": 8.33
+  },
+  {
+    "name": "patate douce",
+    "carbsPer100g": 12.2
+  },
+  {
+    "name": "pate a pizza herta 265g",
+    "carbsPer100g": 42
+  },
+  {
+    "name": "pâte à sucre",
+    "carbsPer100g": 89
+  },
+  {
+    "name": "pate à tartiner Bonne maman",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "pate d'amande",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "pâte de fruits",
+    "carbsPer100g": 70
+  },
+  {
+    "name": "pâte de fruits carrouf",
+    "carbsPer100g": 82
+  },
+  {
+    "name": "pâtes",
+    "carbsPer100g": 25
+  },
+  {
+    "name": "pêche nectarine",
+    "carbsPer100g": 8.9
+  },
+  {
+    "name": "perle de lait vanille 125g",
+    "carbsPer100g": 13.2
+  },
+  {
+    "name": "petales choc terre et cere",
+    "carbsPer100g": 70
+  },
+  {
+    "name": "petit beurre (1bisc = 8,35g)",
+    "carbsPer100g": 74
+  },
+  {
+    "name": "petit beurre choc noir (12,5/biscuits)",
+    "carbsPer100g": 67
+  },
+  {
+    "name": "petit ecolier blanc",
+    "carbsPer100g": 68
+  },
+  {
+    "name": "petit suisse",
+    "carbsPer100g": 3.17
+  },
+  {
+    "name": "petit suisse bio danonino aux fruit (50g)",
+    "carbsPer100g": 10.6
+  },
+  {
+    "name": "petit suisse danonino (50g/u)",
+    "carbsPer100g": 12.7
+  },
+  {
+    "name": "petit suisse fruits Carouf",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "petit suisse nesquick",
+    "carbsPer100g": 25.5
+  },
+  {
+    "name": "petits cœurs (4g/biscuits)",
+    "carbsPer100g": 63
+  },
+  {
+    "name": "petits ecoliers au lait 25g les 2 biscuits",
+    "carbsPer100g": 61
+  },
+  {
+    "name": "petits pois",
+    "carbsPer100g": 8
+  },
+  {
+    "name": "physiosalt",
+    "carbsPer100g": 8.4
+  },
+  {
+    "name": "pim's",
+    "carbsPer100g": 65
+  },
+  {
+    "name": "pistaches",
+    "carbsPer100g": 15.9
+  },
+  {
+    "name": "pitch crousti",
+    "carbsPer100g": 52
+  },
+  {
+    "name": "pitch pépites choc (37,5g)",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "pizza au fromage",
+    "carbsPer100g": 29
+  },
+  {
+    "name": "poire",
+    "carbsPer100g": 10.4
+  },
+  {
+    "name": "pois chiche",
+    "carbsPer100g": 17.7
+  },
+  {
+    "name": "poisson Findus Croustibat",
+    "carbsPer100g": 16
+  },
+  {
+    "name": "poisson pané cabillaud picard",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "poisson pané ceoustibat petit tresors",
+    "carbsPer100g": 21
+  },
+  {
+    "name": "poisson pané Findus cabillaud",
+    "carbsPer100g": 14
+  },
+  {
+    "name": "polenta",
+    "carbsPer100g": 15
+  },
+  {
+    "name": "pomme",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "pomme dauphine findus",
+    "carbsPer100g": 27
+  },
+  {
+    "name": "pomme de terre",
+    "carbsPer100g": 17.2
+  },
+  {
+    "name": "pomme noisettes findus",
+    "carbsPer100g": 25
+  },
+  {
+    "name": "pop korn salé",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "pop korn sucré",
+    "carbsPer100g": 61
+  },
+  {
+    "name": "pop'n croc (117g/u)",
+    "carbsPer100g": 22
+  },
+  {
+    "name": "potimarron",
+    "carbsPer100g": 6.88
+  },
+  {
+    "name": "prince",
+    "carbsPer100g": 67
+  },
+  {
+    "name": "prince (1bisc = 20g)",
+    "carbsPer100g": 69
+  },
+  {
+    "name": "pringles original",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "prune",
+    "carbsPer100g": 9.92
+  },
+  {
+    "name": "purée mousseline originale",
+    "carbsPer100g": 13
+  },
+  {
+    "name": "puree speciale",
+    "carbsPer100g": 8
+  },
+  {
+    "name": "quatre-quarts",
+    "carbsPer100g": 48
+  },
+  {
+    "name": "quenelle nature giraudet",
+    "carbsPer100g": 18.5
+  },
+  {
+    "name": "quinoa",
+    "carbsPer100g": 27.9
+  },
+  {
+    "name": "raisins",
+    "carbsPer100g": 16.5
+  },
+  {
+    "name": "raviolis",
+    "carbsPer100g": 25
+  },
+  {
+    "name": "resille d'or praliné (7g)",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "riz",
+    "carbsPer100g": 31.8
+  },
+  {
+    "name": "rond d'anis (10g/biscuits)",
+    "carbsPer100g": 67
+  },
+  {
+    "name": "roses des sables beurre choc lait",
+    "carbsPer100g": 55.7
+  },
+  {
+    "name": "roses des sables végétaline choc noir",
+    "carbsPer100g": 49.7
+  },
+  {
+    "name": "Roulé à la saucisse Manou",
+    "carbsPer100g": 18.2
+  },
+  {
+    "name": "roulé à la saucisse Manou Netto",
+    "carbsPer100g": 22.3
+  },
+  {
+    "name": "roulé au Nutella",
+    "carbsPer100g": 66.6
+  },
+  {
+    "name": "roulé au nutella (le bon)",
+    "carbsPer100g": 50
+  },
+  {
+    "name": "roulé choco (25g)",
+    "carbsPer100g": 56
+  },
+  {
+    "name": "roulé fraise",
+    "carbsPer100g": 69
+  },
+  {
+    "name": "roulés framboise",
+    "carbsPer100g": 66.1
+  },
+  {
+    "name": "sablés faciles",
+    "carbsPer100g": 63
+  },
+  {
+    "name": "sapin pomme de terre picard",
+    "carbsPer100g": 13
+  },
+  {
+    "name": "sauce basilic basilic",
+    "carbsPer100g": 7.5
+  },
+  {
+    "name": "savane barr (27g)",
+    "carbsPer100g": 53
+  },
+  {
+    "name": "savane duo (25g)",
+    "carbsPer100g": 47
+  },
+  {
+    "name": "savane fourrage cacao noisette (27g)",
+    "carbsPer100g": 46
+  },
+  {
+    "name": "savane marbré choco classique",
+    "carbsPer100g": 45
+  },
+  {
+    "name": "savane pepit'",
+    "carbsPer100g": 52
+  },
+  {
+    "name": "savane rigolo (30g/unité)",
+    "carbsPer100g": 57
+  },
+  {
+    "name": "savane tout choco",
+    "carbsPer100g": 47
+  },
+  {
+    "name": "savora",
+    "carbsPer100g": 15
+  },
+  {
+    "name": "schoco-bon kinder",
+    "carbsPer100g": 52.5
+  },
+  {
+    "name": "semoule",
+    "carbsPer100g": 33
+  },
+  {
+    "name": "semoule fine lait et sucre",
+    "carbsPer100g": 12.3
+  },
+  {
+    "name": "shortbread",
+    "carbsPer100g": 59
+  },
+  {
+    "name": "sirop de menthe carrouf",
+    "carbsPer100g": 71
+  },
+  {
+    "name": "sirop d'erable",
+    "carbsPer100g": 63
+  },
+  {
+    "name": "sirop menthe bio carrefour",
+    "carbsPer100g": 71
+  },
+  {
+    "name": "smarties",
+    "carbsPer100g": 69
+  },
+  {
+    "name": "smile mccain",
+    "carbsPer100g": 21
+  },
+  {
+    "name": "snickers",
+    "carbsPer100g": 60
+  },
+  {
+    "name": "sorbet companion",
+    "carbsPer100g": 14.3
+  },
+  {
+    "name": "sorbet framboise companion",
+    "carbsPer100g": 13.3
+  },
+  {
+    "name": "sorbet mangue",
+    "carbsPer100g": 28
+  },
+  {
+    "name": "sorbet oasis",
+    "carbsPer100g": 27
+  },
+  {
+    "name": "soupe butternut",
+    "carbsPer100g": 3.38
+  },
+  {
+    "name": "soupe de légumes",
+    "carbsPer100g": 6.97
+  },
+  {
+    "name": "soupe potiron",
+    "carbsPer100g": 6
+  },
+  {
+    "name": "specculoos biscoff lotus (10g/biscuits)",
+    "carbsPer100g": 67
+  },
+  {
+    "name": "spéculoos cannelle bisson",
+    "carbsPer100g": 67.4
+  },
+  {
+    "name": "spéculoos lotus (8g/pièce)",
+    "carbsPer100g": 72.6
+  },
+  {
+    "name": "sucre",
+    "carbsPer100g": 100
+  },
+  {
+    "name": "sundae caramel",
+    "carbsPer100g": 35
+  },
+  {
+    "name": "sundea nature",
+    "carbsPer100g": 23
+  },
+  {
+    "name": "tam tam saint Michel",
+    "carbsPer100g": 55
+  },
+  {
+    "name": "tamtam (27,5g)",
+    "carbsPer100g": 55
+  },
+  {
+    "name": "tapenade",
+    "carbsPer100g": 2.6
+  },
+  {
+    "name": "tarte (210 pour 1/8)",
+    "carbsPer100g": 10
+  },
+  {
+    "name": "tarte à la brandade",
+    "carbsPer100g": 24
+  },
+  {
+    "name": "Tarte au citron meringuée (Vi)",
+    "carbsPer100g": 47.9
+  },
+  {
+    "name": "tartelette framboise carrefour (20g)",
+    "carbsPer100g": 71
+  },
+  {
+    "name": "tiramisu",
+    "carbsPer100g": 37
+  },
+  {
+    "name": "tiramisu citron mamivie",
+    "carbsPer100g": 31.5
+  },
+  {
+    "name": "tiramisu picard",
+    "carbsPer100g": 26.9
+  },
+  {
+    "name": "tomates",
+    "carbsPer100g": 2
+  },
+  {
+    "name": "tortellinis",
+    "carbsPer100g": 35
+  },
+  {
+    "name": "tortilla drizz",
+    "carbsPer100g": 64
+  },
+  {
+    "name": "tuc (4g/tuc)",
+    "carbsPer100g": 62
+  },
+  {
+    "name": "vermicelles de riz",
+    "carbsPer100g": 30
+  },
+  {
+    "name": "very parfait nature Mc Do",
+    "carbsPer100g": 71
+  },
+  {
+    "name": "volvic juicy",
+    "carbsPer100g": 4.9
+  },
+  {
+    "name": "yaourt",
+    "carbsPer100g": 5
+  },
+  {
+    "name": "yaourt à boire kids",
+    "carbsPer100g": 11
+  },
+  {
+    "name": "yaourt à boire les2vaches 100g",
+    "carbsPer100g": 11.2
+  },
+  {
+    "name": "yaourt à boire Mathilde",
+    "carbsPer100g": 9
+  },
+  {
+    "name": "yaourt à la grecque Carouf",
+    "carbsPer100g": 4.4
+  },
+  {
+    "name": "yaourt crème marrons gérentes",
+    "carbsPer100g": 14
+  },
+  {
+    "name": "yaourt gourde carrouf (90g/u)",
+    "carbsPer100g": 14
+  },
+  {
+    "name": "yaourt vanille les 2 vaches",
+    "carbsPer100g": 13.4
+  },
+  {
+    "name": "yaourt vanille Malo ou carrouf",
+    "carbsPer100g": 12
+  },
+  {
+    "name": "yop vanille",
+    "carbsPer100g": 10.7
+  },
+  {
+    "name": "sucre coco",
+    "carbsPer100g": 94
+  },
+  {
+    "name": "oasis tropical",
+    "carbsPer100g": 6.1
+  }
+]

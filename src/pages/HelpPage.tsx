@@ -1,5 +1,5 @@
-import { useState, useRef, useMemo } from 'react';
-import { ArrowLeft, Search, X, ChevronRight, Camera, Settings, Users, Database, Download, AlertTriangle, Lightbulb, HelpCircle, Pencil, Scale } from 'lucide-react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import { ArrowLeft, Search, X, ChevronRight, ChevronUp, ChevronDown, Camera, Settings, Users, Database, Download, AlertTriangle, Lightbulb, HelpCircle, Pencil, Scale } from 'lucide-react';
 
 interface HelpPageProps {
   onClose: () => void;
@@ -9,333 +9,500 @@ interface HelpSection {
   id: string;
   title: string;
   icon: React.ReactNode;
-  content: React.ReactNode;
+  content: string;
   keywords: string;
+}
+
+// Plain text content for each section (searchable)
+const SECTIONS_DATA: { id: string; title: string; iconName: string; keywords: string; content: string }[] = [
+  {
+    id: 'getting-started',
+    title: 'Démarrage rapide',
+    iconName: 'camera',
+    keywords: 'commencer démarrer début première session photo',
+    content: `Pour utiliser GluciMiam, suivez ces étapes :
+
+1. Créer un profil utilisateur
+Depuis le menu latéral, cliquez sur Nouvel utilisateur. Renseignez votre nom, âge, et la longueur de votre index (mesurée en mm). Cette mesure sert d'étalon pour estimer la taille des aliments.
+
+2. Configurer le LLM
+Allez dans Configuration LLM et choisissez un fournisseur d'IA (Gemini est gratuit). Entrez votre clé API. Testez la connexion.
+
+3. Importer votre base de données alimentaire
+Allez dans Importer BDD et chargez votre fichier Excel (.xlsx) contenant vos aliments et leurs glucides pour 100g. Note : une base de données de plus de 500 aliments est déjà intégrée dans l'application.
+
+4. Commencer un repas
+Sur l'écran d'accueil, appuyez sur Nouvelle session. Sélectionnez votre profil si vous en avez plusieurs, puis prenez en photo votre plat.`,
+  },
+  {
+    id: 'new-session',
+    title: 'Nouvelle session repas',
+    iconName: 'camera',
+    keywords: 'session repas nouvelle commencer photo caméra profil utilisateur',
+    content: `Une session repas regroupe toutes les photos et analyses d'un même repas.
+
+Si vous n'avez qu'un seul profil, il est sélectionné automatiquement. Sinon, choisissez votre profil dans la liste.
+
+Après la sélection du profil, la caméra s'ouvre. Vous pouvez :
+- Photo : prendre une photo statique du plat
+- Vidéo 5s : filmer le plat sous différents angles (une image sera extraite)
+- Galerie : choisir une image existante de votre galerie
+
+Astuce : Ajoutez un contexte textuel (ex: "2 biscuits nutella", "pâtes carbonara 200g") pour aider l'IA à identifier le plat correctement.
+
+Le bouton + en bas de la session permet d'ajouter d'autres photos au même repas. Le bouton Fin de session repas clôture la session.`,
+  },
+  {
+    id: 'food-analysis',
+    title: 'Analyse des aliments par IA',
+    iconName: 'search',
+    keywords: 'analyse IA LLM intelligence artificielle reconnaissance aliment photo glucides estimation',
+    content: `L'analyse se fait en plusieurs étapes :
+
+1. Envoi au LLM
+La photo est envoyée au fournisseur d'IA choisi (Claude, Gemini, ChatGPT) avec les informations de contexte.
+
+2. Identification et estimation
+L'IA identifie l'aliment, estime son poids en utilisant votre doigt comme référence, et calcule les glucides.
+
+3. Vérification BDD locale
+Si votre base de données alimentaire contient l'aliment identifié, ses glucides/100g sont utilisés en priorité à la place de l'estimation de l'IA.
+
+4. Fallback OpenFoodFacts
+Si l'aliment n'est pas dans votre BDD locale, une recherche est effectuée sur OpenFoodFacts pour vérifier les valeurs.
+
+Astuce : Cliquez sur Détail LLM sous chaque analyse pour voir le raisonnement complet de l'IA.`,
+  },
+  {
+    id: 'edit-food',
+    title: 'Corriger les glucides et le poids',
+    iconName: 'pencil',
+    keywords: 'corriger éditer modifier glucides poids grammes changer base données aliment',
+    content: `Chaque carte d'aliment offre plusieurs options d'édition :
+
+Modifier les glucides
+Cliquez sur l'icône crayon à côté de la valeur en grammes de glucides. Entrez la valeur correcte et validez.
+
+Modifier le poids
+Cliquez sur l'icône crayon à côté du poids estimé. Si les glucides/100g sont connus, le total sera recalculé automatiquement.
+
+Choisir depuis la base de données
+Cliquez sur l'icône loupe à côté du nom de l'aliment pour ouvrir le sélecteur de base de données. Utilisez la barre de recherche ou l'alphabet sur le côté pour trouver rapidement votre aliment. Les glucides seront recalculés avec la valeur de la BDD.
+
+Supprimer une entrée
+Cliquez sur l'icône poubelle en haut à droite de la carte, puis confirmez la suppression.`,
+  },
+  {
+    id: 'pump-tracking',
+    title: 'Suivi pompe à insuline',
+    iconName: 'scale',
+    keywords: 'pompe insuline bolus glucides total restant entré',
+    content: `Le header de la session affiche trois compteurs :
+
+- Total glucides : somme de tous les glucides estimés/corrigés de la session
+- Dans pompe : glucides déjà renseignés dans votre pompe à insuline (éditable en cliquant dessus)
+- Restant : différence entre le total et ce qui est dans la pompe
+
+Astuce : Le compteur "Restant" vous indique combien de glucides vous devez encore entrer dans votre pompe pour couvrir le repas.`,
+  },
+  {
+    id: 'food-database',
+    title: 'Base de données alimentaire',
+    iconName: 'database',
+    keywords: 'base données aliments excel xlsx importer import fichier glucides 100g',
+    content: `La base de données alimentaire locale permet d'avoir des valeurs de glucides précises et personnalisées.
+
+Une base de plus de 500 aliments courants est déjà intégrée dans l'application au premier lancement.
+
+Format du fichier Excel
+Le fichier doit contenir deux colonnes :
+- Aliment : nom de l'aliment
+- Glucides % (en g/100g) : teneur en glucides pour 100g
+
+Importer
+Menu > Importer BDD > sélectionnez votre fichier .xlsx. Les aliments déjà présents ne seront pas dupliqués.
+
+Priorité des données
+Lors de l'analyse, les valeurs sont utilisées dans cet ordre :
+1. Base de données locale (votre fichier Excel)
+2. OpenFoodFacts (recherche en ligne)
+3. Estimation de l'IA (en dernier recours)`,
+  },
+  {
+    id: 'llm-config',
+    title: 'Configuration du LLM',
+    iconName: 'settings',
+    keywords: 'configuration LLM IA clé API gemini claude chatgpt openai modèle fournisseur',
+    content: `GluciMiam supporte plusieurs fournisseurs d'intelligence artificielle :
+
+Fournisseurs disponibles
+- Gemini (Google) : gratuit, bonne qualité d'analyse
+- Claude (Anthropic) : meilleure qualité, payant
+- ChatGPT (OpenAI) : GPT-4o avec vision, payant
+- Perplexity : recherche augmentée (pas d'analyse d'image)
+
+Clés API
+Chaque fournisseur conserve sa propre clé API. Quand vous changez de fournisseur, votre clé précédente est sauvegardée et sera restaurée si vous revenez à ce fournisseur.
+
+Astuce : Utilisez le bouton Tester la connexion pour vérifier que votre clé API fonctionne avant de sauvegarder.`,
+  },
+  {
+    id: 'user-profiles',
+    title: 'Gestion des profils',
+    iconName: 'users',
+    keywords: 'profil utilisateur créer modifier supprimer index doigt sensibilité insuline ratio glucides',
+    content: `Chaque profil utilisateur contient :
+- Nom et âge
+- Longueur de l'index (mm) : sert d'étalon de mesure sur les photos
+- Sensibilité à l'insuline : par période horaire (mg/dL par unité d'insuline)
+- Ratio de glucides : par période horaire (grammes par unité d'insuline)
+
+Créer / Modifier / Supprimer
+Depuis le menu latéral :
+- Nouvel utilisateur : créer un nouveau profil
+- Modifier utilisateur : éditer un profil existant (icône poubelle pour supprimer)`,
+  },
+  {
+    id: 'import-export',
+    title: 'Import / Export des données',
+    iconName: 'download',
+    keywords: 'import export sauvegarder backup restaurer json données',
+    content: `Exporter
+Menu > Exporter BDD : télécharge un fichier JSON contenant toutes vos données (profils, sessions, aliments, configuration).
+
+Importer
+Menu > Importer BDD : importez un fichier JSON exporté précédemment ou un fichier Excel de base de données alimentaire.
+
+Astuce : Exportez régulièrement vos données pour créer des sauvegardes. Les données sont stockées localement dans votre navigateur et peuvent être perdues si vous videz le cache.`,
+  },
+  {
+    id: 'faq',
+    title: 'FAQ',
+    iconName: 'help',
+    keywords: 'question fréquente faq problème pourquoi comment',
+    content: `Q : Pourquoi l'estimation des glucides est-elle différente de la réalité ?
+R : L'IA estime le poids visuellement, ce qui peut être imprécis. Importez votre base de données alimentaire pour que les glucides/100g soient exacts, et corrigez le poids manuellement si nécessaire.
+
+Q : L'analyse échoue systématiquement, que faire ?
+R : Vérifiez votre connexion internet et votre clé API (Configuration LLM > Tester la connexion). Essayez un autre fournisseur ou modèle.
+
+Q : Puis-je utiliser l'app sans connexion internet ?
+R : La caméra et l'interface fonctionnent hors ligne grâce au mode PWA. Cependant, l'analyse par IA nécessite une connexion.
+
+Q : Comment mesurer la longueur de mon index ?
+R : Mesurez du bout de l'index jusqu'à la première articulation avec une règle. Typiquement entre 65 et 85 mm.
+
+Q : Mes données sont-elles envoyées sur un serveur ?
+R : Les données sont stockées localement sur votre appareil. Seules les photos sont envoyées au fournisseur d'IA pour l'analyse, puis supprimées de leurs serveurs.
+
+Q : Comment installer l'app sur mon téléphone ?
+R : Ouvrez l'URL dans Chrome sur Android, puis appuyez sur le menu > "Ajouter à l'écran d'accueil". L'app fonctionnera comme une application native.`,
+  },
+  {
+    id: 'troubleshooting',
+    title: 'Dépannage',
+    iconName: 'alert',
+    keywords: 'problème erreur bug caméra LLM json incomplet timeout connexion',
+    content: `La caméra ne s'ouvre pas
+- Vérifiez que vous avez autorisé l'accès à la caméra dans les paramètres de votre navigateur
+- Sur Android, utilisez Chrome (Firefox peut avoir des limitations)
+- Essayez d'utiliser le bouton "Galerie" pour sélectionner une photo existante
+
+Erreur 'JSON incomplet' ou 'Timeout'
+- Le LLM a mis trop de temps à répondre. Relancez l'analyse.
+- Essayez un modèle plus rapide (ex: Gemini Flash au lieu de Pro)
+- Vérifiez votre connexion internet
+
+L'app tourne en boucle / le spinner ne s'arrête pas
+- Un timeout de 30 secondes est en place. Attendez qu'il se déclenche.
+- Si le problème persiste, fermez l'app et rouvrez-la.
+
+Les glucides estimés sont très différents de la réalité
+- Importez votre base de données alimentaire (.xlsx) pour des valeurs précises
+- Ajoutez toujours un contexte textuel pour aider l'IA
+- Corrigez le poids et les glucides manuellement
+- Choisissez l'aliment directement depuis la BDD via l'icône loupe
+
+L'import Excel ne fonctionne pas
+- Vérifiez que votre fichier est au format .xlsx
+- Les colonnes doivent s'appeler "Aliment" et "Glucides % (en g/100g)"
+- Les entrées d'une seule lettre (séparateurs alphabétiques) sont automatiquement ignorées`,
+  },
+  {
+    id: 'best-practices',
+    title: 'Bonnes pratiques',
+    iconName: 'lightbulb',
+    keywords: 'conseil astuce bonne pratique meilleur précis photo lumière angle',
+    content: `Pour de meilleures estimations :
+
+Éclairage
+Prenez vos photos avec un bon éclairage naturel. Évitez les ombres fortes et le contre-jour.
+
+Position du doigt
+Placez votre index à côté de l'aliment, à la même distance de l'objectif. Le doigt doit être bien visible et net.
+
+Angle de vue
+Photographiez le plat du dessus (vue plongeante) pour une meilleure estimation des volumes.
+
+Contexte textuel
+Ajoutez toujours un descriptif : "2 biscuits nutella", "150g de riz basmati cuit", "1 pomme moyenne". Plus vous êtes précis, meilleure sera l'analyse.
+
+Base de données
+Importez et enrichissez votre base de données alimentaire avec vos aliments courants. Les valeurs de la BDD locale sont toujours prioritaires.
+
+Vérification systématique
+Vérifiez et corrigez les estimations de l'IA, surtout pour les aliments riches en glucides. Utilisez le sélecteur de BDD pour les aliments connus.`,
+  },
+];
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  camera: <Camera size={16} />,
+  search: <Search size={16} />,
+  pencil: <Pencil size={16} />,
+  scale: <Scale size={16} />,
+  database: <Database size={16} />,
+  settings: <Settings size={16} />,
+  users: <Users size={16} />,
+  download: <Download size={16} />,
+  help: <HelpCircle size={16} />,
+  alert: <AlertTriangle size={16} />,
+  lightbulb: <Lightbulb size={16} />,
+};
+
+function HighlightedText({ text, searchQuery, currentIndex, allMatches }: {
+  text: string;
+  searchQuery: string;
+  currentIndex: number;
+  allMatches: { sectionId: string; position: number }[];
+}) {
+  if (!searchQuery.trim()) return <>{text}</>;
+
+  const lower = text.toLowerCase();
+  const queryLower = searchQuery.toLowerCase();
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let matchIdx = 0;
+  let pos = lower.indexOf(queryLower);
+
+  while (pos !== -1) {
+    if (pos > lastIndex) {
+      parts.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex, pos)}</span>);
+    }
+
+    // Find global match index for this position
+    const globalIdx = allMatches.findIndex((m, i) => i >= matchIdx && m.position === pos);
+    const isCurrent = globalIdx === currentIndex;
+    matchIdx = globalIdx + 1;
+
+    parts.push(
+      <mark
+        key={`m-${pos}`}
+        data-match-index={globalIdx}
+        style={{
+          background: isCurrent ? 'var(--accent-primary)' : 'rgba(0,212,255,0.25)',
+          color: isCurrent ? 'var(--bg-primary)' : 'inherit',
+          borderRadius: 3,
+          padding: '1px 2px',
+          fontWeight: isCurrent ? 700 : 'inherit',
+          boxShadow: isCurrent ? '0 0 8px rgba(0,212,255,0.5)' : 'none',
+        }}
+      >
+        {text.slice(pos, pos + searchQuery.length)}
+      </mark>
+    );
+
+    lastIndex = pos + searchQuery.length;
+    pos = lower.indexOf(queryLower, lastIndex);
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex)}</span>);
+  }
+
+  return <>{parts}</>;
 }
 
 export default function HelpPage({ onClose }: HelpPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
-  const sections: HelpSection[] = useMemo(() => [
-    {
-      id: 'getting-started',
-      title: 'Démarrage rapide',
-      icon: <Camera size={16} />,
-      keywords: 'commencer démarrer début première session photo',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p>Pour utiliser GluciMiam, suivez ces étapes :</p>
-          <Step n={1} title="Créer un profil utilisateur">
-            Depuis le menu latéral, cliquez sur <b>Nouvel utilisateur</b>. Renseignez votre nom, âge, et la longueur de votre index (mesurée en mm). Cette mesure sert d'étalon pour estimer la taille des aliments.
-          </Step>
-          <Step n={2} title="Configurer le LLM">
-            Allez dans <b>Configuration LLM</b> et choisissez un fournisseur d'IA (Gemini est gratuit). Entrez votre clé API. Testez la connexion.
-          </Step>
-          <Step n={3} title="Importer votre base de données alimentaire">
-            Allez dans <b>Importer BDD</b> et chargez votre fichier Excel (.xlsx) contenant vos aliments et leurs glucides pour 100g.
-          </Step>
-          <Step n={4} title="Commencer un repas">
-            Sur l'écran d'accueil, appuyez sur <b>Nouvelle session</b>. Sélectionnez votre profil si vous en avez plusieurs, puis prenez en photo votre plat.
-          </Step>
-        </div>
-      ),
-    },
-    {
-      id: 'new-session',
-      title: 'Nouvelle session repas',
-      icon: <Camera size={16} />,
-      keywords: 'session repas nouvelle commencer photo caméra profil utilisateur',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p>Une <b>session repas</b> regroupe toutes les photos et analyses d'un même repas.</p>
-          <Tip>
-            Si vous n'avez qu'un seul profil, il est sélectionné automatiquement. Sinon, choisissez votre profil dans la liste.
-          </Tip>
-          <p>Après la sélection du profil, la caméra s'ouvre. Vous pouvez :</p>
-          <ul style={{ paddingLeft: 20 }}>
-            <li><b>Photo</b> : prendre une photo statique du plat</li>
-            <li><b>Vidéo 5s</b> : filmer le plat sous différents angles (une image sera extraite)</li>
-            <li><b>Galerie</b> : choisir une image existante de votre galerie</li>
-          </ul>
-          <Tip>
-            Ajoutez un <b>contexte textuel</b> (ex: "2 biscuits nutella", "pâtes carbonara 200g") pour aider l'IA à identifier le plat correctement.
-          </Tip>
-          <p>Le bouton <b>+</b> en bas de la session permet d'ajouter d'autres photos au même repas. Le bouton <b>Fin de session repas</b> clôture la session.</p>
-        </div>
-      ),
-    },
-    {
-      id: 'food-analysis',
-      title: 'Analyse des aliments par IA',
-      icon: <Search size={16} />,
-      keywords: 'analyse IA LLM intelligence artificielle reconnaissance aliment photo glucides estimation',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p>L'analyse se fait en plusieurs étapes :</p>
-          <Step n={1} title="Envoi au LLM">
-            La photo est envoyée au fournisseur d'IA choisi (Claude, Gemini, ChatGPT) avec les informations de contexte.
-          </Step>
-          <Step n={2} title="Identification et estimation">
-            L'IA identifie l'aliment, estime son poids en utilisant votre doigt comme référence, et calcule les glucides.
-          </Step>
-          <Step n={3} title="Vérification BDD locale">
-            Si votre base de données alimentaire contient l'aliment identifié, ses glucides/100g sont utilisés en priorité à la place de l'estimation de l'IA.
-          </Step>
-          <Step n={4} title="Fallback OpenFoodFacts">
-            Si l'aliment n'est pas dans votre BDD locale, une recherche est effectuée sur OpenFoodFacts pour vérifier les valeurs.
-          </Step>
-          <Tip>
-            Cliquez sur <b>Détail LLM</b> sous chaque analyse pour voir le raisonnement complet de l'IA.
-          </Tip>
-        </div>
-      ),
-    },
-    {
-      id: 'edit-food',
-      title: 'Corriger les glucides et le poids',
-      icon: <Pencil size={16} />,
-      keywords: 'corriger éditer modifier glucides poids grammes changer base données aliment',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p>Chaque carte d'aliment offre plusieurs options d'édition :</p>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Modifier les glucides</h4>
-          <p>Cliquez sur l'icône crayon à côté de la valeur en grammes de glucides. Entrez la valeur correcte et validez.</p>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Modifier le poids</h4>
-          <p>Cliquez sur l'icône crayon à côté du poids estimé. Si les glucides/100g sont connus, le total sera recalculé automatiquement.</p>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Choisir depuis la base de données</h4>
-          <p>Cliquez sur l'icône loupe à côté du nom de l'aliment pour ouvrir le sélecteur de base de données. Utilisez la barre de recherche ou l'alphabet sur le côté pour trouver rapidement votre aliment. Les glucides seront recalculés avec la valeur de la BDD.</p>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Supprimer une entrée</h4>
-          <p>Cliquez sur l'icône poubelle en haut à droite de la carte, puis confirmez la suppression.</p>
-        </div>
-      ),
-    },
-    {
-      id: 'pump-tracking',
-      title: 'Suivi pompe à insuline',
-      icon: <Scale size={16} />,
-      keywords: 'pompe insuline bolus glucides total restant entré',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p>Le header de la session affiche trois compteurs :</p>
-          <ul style={{ paddingLeft: 20 }}>
-            <li><b>Total glucides</b> : somme de tous les glucides estimés/corrigés de la session</li>
-            <li><b>Dans pompe</b> : glucides déjà renseignés dans votre pompe à insuline (éditable en cliquant dessus)</li>
-            <li><b>Restant</b> : différence entre le total et ce qui est dans la pompe</li>
-          </ul>
-          <Tip>
-            Le compteur "Restant" vous indique combien de glucides vous devez encore entrer dans votre pompe pour couvrir le repas.
-          </Tip>
-        </div>
-      ),
-    },
-    {
-      id: 'food-database',
-      title: 'Base de données alimentaire',
-      icon: <Database size={16} />,
-      keywords: 'base données aliments excel xlsx importer import fichier glucides 100g',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p>La base de données alimentaire locale permet d'avoir des valeurs de glucides précises et personnalisées.</p>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Format du fichier Excel</h4>
-          <p>Le fichier doit contenir deux colonnes :</p>
-          <ul style={{ paddingLeft: 20 }}>
-            <li><b>Aliment</b> : nom de l'aliment</li>
-            <li><b>Glucides % (en g/100g)</b> : teneur en glucides pour 100g</li>
-          </ul>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Importer</h4>
-          <p>Menu &gt; <b>Importer BDD</b> &gt; sélectionnez votre fichier .xlsx. Les aliments déjà présents ne seront pas dupliqués.</p>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Priorité des données</h4>
-          <p>Lors de l'analyse, les valeurs sont utilisées dans cet ordre :</p>
-          <ol style={{ paddingLeft: 20 }}>
-            <li>Base de données locale (votre fichier Excel)</li>
-            <li>OpenFoodFacts (recherche en ligne)</li>
-            <li>Estimation de l'IA (en dernier recours)</li>
-          </ol>
-        </div>
-      ),
-    },
-    {
-      id: 'llm-config',
-      title: 'Configuration du LLM',
-      icon: <Settings size={16} />,
-      keywords: 'configuration LLM IA clé API gemini claude chatgpt openai modèle fournisseur',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p>GluciMiam supporte plusieurs fournisseurs d'intelligence artificielle :</p>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Fournisseurs disponibles</h4>
-          <ul style={{ paddingLeft: 20 }}>
-            <li><b>Gemini (Google)</b> : gratuit, bonne qualité d'analyse</li>
-            <li><b>Claude (Anthropic)</b> : meilleure qualité, payant</li>
-            <li><b>ChatGPT (OpenAI)</b> : GPT-4o avec vision, payant</li>
-            <li><b>Perplexity</b> : recherche augmentée (pas d'analyse d'image)</li>
-          </ul>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Clés API</h4>
-          <p>Chaque fournisseur conserve sa propre clé API. Quand vous changez de fournisseur, votre clé précédente est sauvegardée et sera restaurée si vous revenez à ce fournisseur.</p>
-          <Tip>
-            Utilisez le bouton <b>Tester la connexion</b> pour vérifier que votre clé API fonctionne avant de sauvegarder.
-          </Tip>
-        </div>
-      ),
-    },
-    {
-      id: 'user-profiles',
-      title: 'Gestion des profils',
-      icon: <Users size={16} />,
-      keywords: 'profil utilisateur créer modifier supprimer index doigt sensibilité insuline ratio glucides',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p>Chaque profil utilisateur contient :</p>
-          <ul style={{ paddingLeft: 20 }}>
-            <li><b>Nom et âge</b></li>
-            <li><b>Longueur de l'index</b> (mm) : sert d'étalon de mesure sur les photos</li>
-            <li><b>Sensibilité à l'insuline</b> : par période horaire (mg/dL par unité d'insuline)</li>
-            <li><b>Ratio de glucides</b> : par période horaire (grammes par unité d'insuline)</li>
-          </ul>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Créer / Modifier / Supprimer</h4>
-          <p>Depuis le menu latéral :</p>
-          <ul style={{ paddingLeft: 20 }}>
-            <li><b>Nouvel utilisateur</b> : créer un nouveau profil</li>
-            <li><b>Modifier utilisateur</b> : éditer un profil existant (icône poubelle pour supprimer)</li>
-          </ul>
-        </div>
-      ),
-    },
-    {
-      id: 'import-export',
-      title: 'Import / Export des données',
-      icon: <Download size={16} />,
-      keywords: 'import export sauvegarder backup restaurer json données',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13 }}>Exporter</h4>
-          <p>Menu &gt; <b>Exporter BDD</b> : télécharge un fichier JSON contenant toutes vos données (profils, sessions, aliments, configuration).</p>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13, marginTop: 4 }}>Importer</h4>
-          <p>Menu &gt; <b>Importer BDD</b> : importez un fichier JSON exporté précédemment ou un fichier Excel de base de données alimentaire.</p>
-          <Tip>
-            Exportez régulièrement vos données pour créer des sauvegardes. Les données sont stockées localement dans votre navigateur et peuvent être perdues si vous videz le cache.
-          </Tip>
-        </div>
-      ),
-    },
-    {
-      id: 'faq',
-      title: 'FAQ',
-      icon: <HelpCircle size={16} />,
-      keywords: 'question fréquente faq problème pourquoi comment',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <FAQ q="Pourquoi l'estimation des glucides est-elle différente de la réalité ?">
-            L'IA estime le poids visuellement, ce qui peut être imprécis. Importez votre base de données alimentaire pour que les glucides/100g soient exacts, et corrigez le poids manuellement si nécessaire.
-          </FAQ>
-          <FAQ q="L'analyse échoue systématiquement, que faire ?">
-            Vérifiez votre connexion internet et votre clé API (Configuration LLM &gt; Tester la connexion). Essayez un autre fournisseur ou modèle.
-          </FAQ>
-          <FAQ q="Puis-je utiliser l'app sans connexion internet ?">
-            La caméra et l'interface fonctionnent hors ligne grâce au mode PWA. Cependant, l'analyse par IA nécessite une connexion.
-          </FAQ>
-          <FAQ q="Comment mesurer la longueur de mon index ?">
-            Mesurez du bout de l'index jusqu'à la première articulation avec une règle. Typiquement entre 65 et 85 mm.
-          </FAQ>
-          <FAQ q="Mes données sont-elles envoyées sur un serveur ?">
-            Les données sont stockées localement sur votre appareil. Seules les photos sont envoyées au fournisseur d'IA pour l'analyse, puis supprimées de leurs serveurs.
-          </FAQ>
-          <FAQ q="Comment installer l'app sur mon téléphone ?">
-            Ouvrez l'URL dans Chrome sur Android, puis appuyez sur le menu &gt; "Ajouter à l'écran d'accueil". L'app fonctionnera comme une application native.
-          </FAQ>
-        </div>
-      ),
-    },
-    {
-      id: 'troubleshooting',
-      title: 'Dépannage',
-      icon: <AlertTriangle size={16} />,
-      keywords: 'problème erreur bug caméra LLM json incomplet timeout connexion',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Trouble title="La caméra ne s'ouvre pas">
-            <ul style={{ paddingLeft: 20 }}>
-              <li>Vérifiez que vous avez autorisé l'accès à la caméra dans les paramètres de votre navigateur</li>
-              <li>Sur Android, utilisez Chrome (Firefox peut avoir des limitations)</li>
-              <li>Essayez d'utiliser le bouton "Galerie" pour sélectionner une photo existante</li>
-            </ul>
-          </Trouble>
-          <Trouble title="Erreur 'JSON incomplet' ou 'Timeout'">
-            <ul style={{ paddingLeft: 20 }}>
-              <li>Le LLM a mis trop de temps à répondre. Relancez l'analyse.</li>
-              <li>Essayez un modèle plus rapide (ex: Gemini Flash au lieu de Pro)</li>
-              <li>Vérifiez votre connexion internet</li>
-            </ul>
-          </Trouble>
-          <Trouble title="L'app tourne en boucle / le spinner ne s'arrête pas">
-            <ul style={{ paddingLeft: 20 }}>
-              <li>Un timeout de 30 secondes est en place. Attendez qu'il se déclenche.</li>
-              <li>Si le problème persiste, fermez l'app et rouvrez-la.</li>
-            </ul>
-          </Trouble>
-          <Trouble title="Les glucides estimés sont très différents de la réalité">
-            <ul style={{ paddingLeft: 20 }}>
-              <li>Importez votre base de données alimentaire (.xlsx) pour des valeurs précises</li>
-              <li>Ajoutez toujours un contexte textuel pour aider l'IA</li>
-              <li>Corrigez le poids et les glucides manuellement</li>
-              <li>Choisissez l'aliment directement depuis la BDD via l'icône loupe</li>
-            </ul>
-          </Trouble>
-          <Trouble title="L'import Excel ne fonctionne pas">
-            <ul style={{ paddingLeft: 20 }}>
-              <li>Vérifiez que votre fichier est au format .xlsx</li>
-              <li>Les colonnes doivent s'appeler "Aliment" et "Glucides % (en g/100g)"</li>
-              <li>Les entrées d'une seule lettre (séparateurs alphabétiques) sont automatiquement ignorées</li>
-            </ul>
-          </Trouble>
-        </div>
-      ),
-    },
-    {
-      id: 'best-practices',
-      title: 'Bonnes pratiques',
-      icon: <Lightbulb size={16} />,
-      keywords: 'conseil astuce bonne pratique meilleur précis photo lumière angle',
-      content: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h4 style={{ color: 'var(--accent-primary)', fontSize: 13 }}>Pour de meilleures estimations :</h4>
-          <BestPractice title="Éclairage">
-            Prenez vos photos avec un bon éclairage naturel. Évitez les ombres fortes et le contre-jour.
-          </BestPractice>
-          <BestPractice title="Position du doigt">
-            Placez votre index à côté de l'aliment, à la même distance de l'objectif. Le doigt doit être bien visible et net.
-          </BestPractice>
-          <BestPractice title="Angle de vue">
-            Photographiez le plat du dessus (vue plongeante) pour une meilleure estimation des volumes.
-          </BestPractice>
-          <BestPractice title="Contexte textuel">
-            Ajoutez toujours un descriptif : "2 biscuits nutella", "150g de riz basmati cuit", "1 pomme moyenne". Plus vous êtes précis, meilleure sera l'analyse.
-          </BestPractice>
-          <BestPractice title="Base de données">
-            Importez et enrichissez votre base de données alimentaire avec vos aliments courants. Les valeurs de la BDD locale sont toujours prioritaires.
-          </BestPractice>
-          <BestPractice title="Vérification systématique">
-            Vérifiez et corrigez les estimations de l'IA, surtout pour les aliments riches en glucides. Utilisez le sélecteur de BDD pour les aliments connus.
-          </BestPractice>
-        </div>
-      ),
-    },
-  ], []);
+  const sections: HelpSection[] = useMemo(() =>
+    SECTIONS_DATA.map((s) => ({
+      ...s,
+      icon: ICON_MAP[s.iconName] || <HelpCircle size={16} />,
+    })),
+  []);
+
+  // Find all matches across all sections
+  const allMatches = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const queryLower = searchQuery.toLowerCase();
+    const matches: { sectionId: string; position: number }[] = [];
+
+    for (const section of SECTIONS_DATA) {
+      const textLower = (section.title + '\n' + section.content).toLowerCase();
+      let pos = textLower.indexOf(queryLower);
+      while (pos !== -1) {
+        matches.push({ sectionId: section.id, position: pos - section.title.length - 1 });
+        pos = textLower.indexOf(queryLower, pos + 1);
+      }
+    }
+    return matches;
+  }, [searchQuery]);
+
+  // Sections that contain matches
+  const matchingSectionIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const m of allMatches) ids.add(m.sectionId);
+    return ids;
+  }, [allMatches]);
 
   const filteredSections = useMemo(() => {
     if (!searchQuery.trim()) return sections;
-    const lower = searchQuery.toLowerCase();
-    return sections.filter(
-      (s) => s.title.toLowerCase().includes(lower) || s.keywords.toLowerCase().includes(lower)
-    );
-  }, [sections, searchQuery]);
+    return sections.filter((s) => matchingSectionIds.has(s.id));
+  }, [sections, searchQuery, matchingSectionIds]);
+
+  // Reset match index when query changes
+  useEffect(() => {
+    setCurrentMatchIndex(0);
+  }, [searchQuery]);
+
+  // Scroll to current match
+  useEffect(() => {
+    if (allMatches.length === 0) return;
+    const match = allMatches[currentMatchIndex];
+    if (!match) return;
+
+    // Expand the section containing the current match
+    setExpandedSection(match.sectionId);
+
+    // Scroll to the highlighted element after render
+    setTimeout(() => {
+      const el = contentRef.current?.querySelector(`[data-match-index="${currentMatchIndex}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 50);
+  }, [currentMatchIndex, allMatches]);
+
+  const goNextMatch = useCallback(() => {
+    if (allMatches.length === 0) return;
+    setCurrentMatchIndex((prev) => (prev + 1) % allMatches.length);
+  }, [allMatches]);
+
+  const goPrevMatch = useCallback(() => {
+    if (allMatches.length === 0) return;
+    setCurrentMatchIndex((prev) => (prev - 1 + allMatches.length) % allMatches.length);
+  }, [allMatches]);
+
+  // Per-section matches for HighlightedText
+  const getSectionMatches = useCallback((sectionId: string) => {
+    return allMatches.filter((m) => m.sectionId === sectionId);
+  }, [allMatches]);
 
   const scrollToSection = (id: string) => {
     setExpandedSection(id);
     setTimeout(() => {
       sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
+  };
+
+  const renderContent = (sectionId: string, text: string) => {
+    const sectionMatches = getSectionMatches(sectionId);
+    const lines = text.split('\n');
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {lines.map((line, i) => {
+          const trimmed = line.trim();
+          if (!trimmed) return <div key={i} style={{ height: 8 }} />;
+
+          // Detect numbered steps (1. Title)
+          const stepMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+          if (stepMatch) {
+            return (
+              <div key={i} style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%', background: 'var(--accent-primary)',
+                  color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 1,
+                }}>
+                  {stepMatch[1]}
+                </div>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                  <HighlightedText text={stepMatch[2]} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+                </div>
+              </div>
+            );
+          }
+
+          // Detect "Q :" / "R :" for FAQ
+          if (trimmed.startsWith('Q : ')) {
+            return (
+              <div key={i} style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13, marginTop: 8 }}>
+                <HighlightedText text={trimmed} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+              </div>
+            );
+          }
+          if (trimmed.startsWith('R : ')) {
+            return (
+              <div key={i} style={{ paddingLeft: 16, borderLeft: '2px solid var(--border-color)' }}>
+                <HighlightedText text={trimmed.slice(4)} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+              </div>
+            );
+          }
+
+          // Detect "Astuce :" tips
+          if (trimmed.startsWith('Astuce :') || trimmed.startsWith('Astuce :')) {
+            return (
+              <div key={i} style={{
+                padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+                background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.2)',
+                fontSize: 12, display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 4,
+              }}>
+                <Lightbulb size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0, marginTop: 1 }} />
+                <span>
+                  <HighlightedText text={trimmed.replace(/^Astuce\s*:\s*/, '')} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+                </span>
+              </div>
+            );
+          }
+
+          // Detect list items
+          if (trimmed.startsWith('- ')) {
+            return (
+              <div key={i} style={{ paddingLeft: 16, display: 'flex', gap: 6 }}>
+                <span style={{ color: 'var(--accent-primary)' }}>•</span>
+                <span>
+                  <HighlightedText text={trimmed.slice(2)} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+                </span>
+              </div>
+            );
+          }
+
+          // Detect section titles (short lines without punctuation at end, followed by content)
+          const nextLine = lines[i + 1]?.trim() || '';
+          const isTitle = trimmed.length < 60 && !trimmed.endsWith('.') && !trimmed.endsWith(':') && !trimmed.startsWith('-') && nextLine && (nextLine.startsWith('-') || nextLine.length > 40);
+          if (isTitle && !stepMatch) {
+            return (
+              <div key={i} style={{ color: 'var(--accent-primary)', fontSize: 13, fontWeight: 600, marginTop: 8 }}>
+                <HighlightedText text={trimmed} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+              </div>
+            );
+          }
+
+          // Default paragraph
+          return (
+            <div key={i}>
+              <HighlightedText text={trimmed} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={sectionMatches} />
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -352,9 +519,12 @@ export default function HelpPage({ onClose }: HelpPageProps) {
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: 4 }}>
           <ArrowLeft size={20} />
         </button>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>
           Aide
         </h2>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
+          <X size={20} />
+        </button>
       </div>
 
       {/* Search bar (sticky) */}
@@ -389,15 +559,54 @@ export default function HelpPage({ onClose }: HelpPageProps) {
             }}
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}>
-              <X size={14} />
-            </button>
+            <>
+              {/* Match counter and navigation */}
+              {allMatches.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <span style={{
+                    fontSize: 11,
+                    color: 'var(--accent-primary)',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {currentMatchIndex + 1}/{allMatches.length}
+                  </span>
+                  <button
+                    onClick={goPrevMatch}
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
+                      cursor: 'pointer', padding: 2, display: 'flex',
+                    }}
+                  >
+                    <ChevronUp size={16} />
+                  </button>
+                  <button
+                    onClick={goNextMatch}
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
+                      cursor: 'pointer', padding: 2, display: 'flex',
+                    }}
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                </div>
+              )}
+              {allMatches.length === 0 && searchQuery.trim() && (
+                <span style={{ fontSize: 11, color: 'var(--danger)', whiteSpace: 'nowrap' }}>
+                  0 résultat
+                </span>
+              )}
+              <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2 }}>
+                <X size={14} />
+              </button>
+            </>
           )}
         </div>
       </div>
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+      <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
         {/* Table of contents (only when not searching and nothing expanded) */}
         {!searchQuery && !expandedSection && (
           <div style={{ marginBottom: 20 }}>
@@ -457,7 +666,9 @@ export default function HelpPage({ onClose }: HelpPageProps) {
               }}
             >
               <span style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>{s.icon}</span>
-              <span style={{ flex: 1 }}>{s.title}</span>
+              <span style={{ flex: 1 }}>
+                <HighlightedText text={s.title} searchQuery={searchQuery} currentIndex={currentMatchIndex} allMatches={getSectionMatches(s.id)} />
+              </span>
               <ChevronRight
                 size={14}
                 color="var(--text-muted)"
@@ -477,7 +688,7 @@ export default function HelpPage({ onClose }: HelpPageProps) {
                 marginLeft: 20,
                 marginTop: 4,
               }}>
-                {s.content}
+                {renderContent(s.id, s.content)}
               </div>
             )}
           </div>
@@ -489,81 +700,6 @@ export default function HelpPage({ onClose }: HelpPageProps) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// Sub-components for help content
-function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', gap: 10 }}>
-      <div style={{
-        width: 24, height: 24, borderRadius: '50%', background: 'var(--accent-primary)',
-        color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 2,
-      }}>
-        {n}
-      </div>
-      <div>
-        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{title}</div>
-        <div>{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function Tip({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      padding: '8px 12px',
-      borderRadius: 'var(--radius-sm)',
-      background: 'rgba(0,212,255,0.08)',
-      border: '1px solid rgba(0,212,255,0.2)',
-      fontSize: 12,
-      display: 'flex',
-      gap: 8,
-      alignItems: 'flex-start',
-    }}>
-      <Lightbulb size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0, marginTop: 1 }} />
-      <span>{children}</span>
-    </div>
-  );
-}
-
-function FAQ({ q, children }: { q: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13, marginBottom: 4 }}>
-        Q : {q}
-      </div>
-      <div style={{ paddingLeft: 16, borderLeft: '2px solid var(--border-color)' }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Trouble({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div style={{ fontWeight: 600, color: 'var(--warning)', fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <AlertTriangle size={13} /> {title}
-      </div>
-      <div style={{ fontSize: 12 }}>{children}</div>
-    </div>
-  );
-}
-
-function BestPractice({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{
-      padding: '8px 12px',
-      borderRadius: 'var(--radius-sm)',
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border-color)',
-    }}>
-      <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 12, marginBottom: 2 }}>{title}</div>
-      <div style={{ fontSize: 12 }}>{children}</div>
     </div>
   );
 }

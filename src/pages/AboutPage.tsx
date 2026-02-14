@@ -1,4 +1,4 @@
-import { ArrowLeft, Heart } from 'lucide-react';
+import { ArrowLeft, Heart, X } from 'lucide-react';
 
 interface AboutPageProps {
   onClose: () => void;
@@ -19,9 +19,12 @@ export default function AboutPage({ onClose }: AboutPageProps) {
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: 4 }}>
           <ArrowLeft size={20} />
         </button>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>
           À propos
         </h2>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
+          <X size={20} />
+        </button>
       </div>
 
       {/* Content */}

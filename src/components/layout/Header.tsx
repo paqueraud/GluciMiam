@@ -33,7 +33,7 @@ export default function Header() {
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        padding: '10px 60px 10px 16px',
+        padding: '10px 16px 10px 56px',
         borderBottom: '1px solid var(--border-color)',
       }}
     >

@@ -73,18 +73,6 @@ export default function FoodDatabasePicker({ onSelect, onClose }: FoodDatabasePi
         gap: 12,
         flexShrink: 0,
       }}>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-primary)',
-            cursor: 'pointer',
-            padding: 4,
-          }}
-        >
-          <X size={20} />
-        </button>
         <h3 style={{
           fontSize: 16,
           fontWeight: 700,
@@ -93,9 +81,25 @@ export default function FoodDatabasePicker({ onSelect, onClose }: FoodDatabasePi
         }}>
           Base de données alimentaire
         </h3>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 8 }}>
           {filtered.length} aliments
         </span>
+        <button
+          onClick={onClose}
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            padding: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {/* Search bar */}

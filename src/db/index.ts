@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { UserProfile, MealSession, FoodItem, FoodDatabaseEntry, LLMConfig } from '../types';
+import seedFoods from '../data/seedFoods.json';
 
 export class GluciMiamDB extends Dexie {
   users!: Table<UserProfile, number>;
@@ -21,3 +22,17 @@ export class GluciMiamDB extends Dexie {
 }
 
 export const db = new GluciMiamDB();
+
+// Seed food database on first launch if empty
+db.on('ready', async () => {
+  const count = await db.foodDatabase.count();
+  if (count === 0) {
+    const entries: FoodDatabaseEntry[] = (seedFoods as { name: string; carbsPer100g: number }[]).map((f) => ({
+      name: f.name,
+      carbsPer100g: f.carbsPer100g,
+      source: 'local',
+      category: '',
+    }));
+    await db.foodDatabase.bulkAdd(entries);
+  }
+});
