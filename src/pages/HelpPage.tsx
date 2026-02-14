@@ -20,7 +20,7 @@ Depuis le menu latéral, cliquez sur Nouvel utilisateur. Renseignez votre nom, �
 Allez dans Configuration LLM et choisissez un fournisseur d'IA (Gemini est gratuit). Entrez votre clé API. Testez la connexion.
 
 3. Importer votre base de données alimentaire
-Allez dans Importer BDD et chargez votre fichier Excel (.xlsx) contenant vos aliments et leurs glucides pour 100g. Note : une base de données de plus de 500 aliments est déjà intégrée dans l'application.
+Allez dans Importer BDD et chargez votre fichier Excel (.xlsx) contenant vos aliments et leurs glucides pour 100g. Note : une base de données de plus de 500 aliments est déjà intégrée dans l'application. Vous pouvez aussi gérer vos aliments manuellement via le menu Base alimentaire.
 
 4. Commencer un repas
 Sur l'écran d'accueil, appuyez sur Nouvelle session. Sélectionnez votre profil si vous en avez plusieurs, puis prenez en photo votre plat.`,
@@ -29,46 +29,52 @@ Sur l'écran d'accueil, appuyez sur Nouvelle session. Sélectionnez votre profil
     id: 'new-session',
     title: 'Nouvelle session repas',
     iconName: 'camera',
-    keywords: 'session repas nouvelle commencer photo caméra profil utilisateur',
+    keywords: 'session repas nouvelle commencer photo caméra profil utilisateur multi-angle vidéo',
     content: `Une session repas regroupe toutes les photos et analyses d'un même repas.
 
 Si vous n'avez qu'un seul profil, il est sélectionné automatiquement. Sinon, choisissez votre profil dans la liste.
 
 Après la sélection du profil, la caméra s'ouvre. Vous pouvez :
 - Photo : prendre une photo statique du plat
-- Vidéo 5s : filmer le plat sous différents angles (une image sera extraite)
+- 2ème angle : ajouter une seconde photo sous un angle différent pour une meilleure estimation (les deux photos sont analysées ensemble comme un seul plat)
+- Vidéo 5s : filmer le plat sous différents angles (deux images seront extraites automatiquement)
 - Galerie : choisir une image existante de votre galerie
 
-Astuce : Ajoutez un contexte textuel (ex: "2 biscuits nutella", "pâtes carbonara 200g") pour aider l'IA à identifier le plat correctement.
+Astuce : Ajoutez un contexte textuel (ex: "2 biscuits nutella", "pâtes carbonara 200g") pour aider l'IA à identifier le plat correctement. La recherche dans la base de données commence dès que vous tapez, pour accélérer l'analyse.
 
-Le bouton + en bas de la session permet d'ajouter d'autres photos au même repas. Le bouton Fin de session repas clôture la session.`,
+Le bouton + en bas de la session permet d'ajouter d'autres photos au même repas. Le bouton Fin de session repas clôture la session et sauvegarde les résultats dans le cache de reconnaissance.`,
   },
   {
     id: 'food-analysis',
     title: 'Analyse des aliments par IA',
     iconName: 'search',
-    keywords: 'analyse IA LLM intelligence artificielle reconnaissance aliment photo glucides estimation',
-    content: `L'analyse se fait en plusieurs étapes :
+    keywords: 'analyse IA LLM intelligence artificielle reconnaissance aliment photo glucides estimation streaming progression',
+    content: `L'analyse se fait en plusieurs étapes, avec un affichage en temps réel de la progression :
 
-1. Envoi au LLM
-La photo est envoyée au fournisseur d'IA choisi (Claude, Gemini, ChatGPT) avec les informations de contexte.
+1. Optimisation des images
+Les photos sont redimensionnées et leur contraste est amélioré automatiquement pour une meilleure analyse.
 
-2. Identification et estimation
-L'IA identifie l'aliment, estime son poids en utilisant votre doigt comme référence, et calcule les glucides.
+2. Pass 1 : Identification des aliments
+L'IA identifie tous les aliments distincts dans la photo. Les noms apparaissent à l'écran dès qu'ils sont détectés.
 
-3. Vérification BDD locale
-Si votre base de données alimentaire contient l'aliment identifié, ses glucides/100g sont utilisés en priorité à la place de l'estimation de l'IA.
+3. Recherche dans la base de données
+Pour chaque aliment identifié, une recherche est effectuée dans votre base de données locale pour obtenir les glucides/100g exacts.
 
-4. Fallback OpenFoodFacts
-Si l'aliment n'est pas dans votre BDD locale, une recherche est effectuée sur OpenFoodFacts pour vérifier les valeurs.
+4. Pass 2 : Quantification
+L'IA estime le poids de chaque aliment en utilisant votre doigt comme étalon, puis calcule les glucides totaux. Les résultats apparaissent progressivement au fur et à mesure du streaming.
 
-Astuce : Cliquez sur Détail LLM sous chaque analyse pour voir le raisonnement complet de l'IA.`,
+5. Post-traitement
+- Vérification croisée avec OpenFoodFacts si l'aliment n'est pas dans la BDD locale
+- Application automatique des corrections apprises (si vous avez déjà corrigé cet aliment par le passé)
+- Déduplication des aliments (si plusieurs photos du même plat)
+
+Astuce : L'analyse utilise le streaming : les résultats apparaissent au fur et à mesure au lieu d'attendre la fin complète. Le stream est automatiquement coupé dès que le JSON est complet, ce qui accélère l'analyse.`,
   },
   {
     id: 'edit-food',
     title: 'Corriger les glucides et le poids',
     iconName: 'pencil',
-    keywords: 'corriger éditer modifier glucides poids grammes changer base données aliment',
+    keywords: 'corriger éditer modifier glucides poids grammes changer base données aliment confiance suggestion apprentissage',
     content: `Chaque carte d'aliment offre plusieurs options d'édition :
 
 Modifier les glucides
@@ -78,7 +84,13 @@ Modifier le poids
 Cliquez sur l'icône crayon à côté du poids estimé. Si les glucides/100g sont connus, le total sera recalculé automatiquement.
 
 Choisir depuis la base de données
-Cliquez sur l'icône loupe à côté du nom de l'aliment pour ouvrir le sélecteur de base de données. Utilisez la barre de recherche ou l'alphabet sur le côté pour trouver rapidement votre aliment. Les glucides seront recalculés avec la valeur de la BDD.
+Cliquez sur l'icône loupe à côté du nom de l'aliment pour ouvrir le sélecteur de base de données. Utilisez la barre de recherche ou l'alphabet sur le côté pour trouver rapidement votre aliment. Les glucides seront recalculés avec la valeur de la BDD. Si l'aliment n'existe pas, vous pouvez le créer directement depuis le sélecteur.
+
+Suggestions automatiques
+Quand le score de confiance de l'IA est inférieur à 90%, des suggestions d'aliments similaires de votre base de données sont affichées. Cliquez sur une suggestion pour l'appliquer instantanément.
+
+Apprentissage des corrections
+Chaque correction que vous faites est mémorisée. Lors des prochaines analyses du même aliment, GlucIA appliquera automatiquement vos ratios de correction habituels (poids et/ou glucides).
 
 Supprimer une entrée
 Cliquez sur l'icône poubelle en haut à droite de la carte, puis confirmez la suppression.`,
@@ -100,12 +112,22 @@ Astuce : Le compteur "Restant" vous indique combien de glucides vous devez encor
     id: 'food-database',
     title: 'Base de données alimentaire',
     iconName: 'database',
-    keywords: 'base données aliments excel xlsx importer import fichier glucides 100g',
+    keywords: 'base données aliments excel xlsx importer import fichier glucides 100g éditeur créer modifier supprimer',
     content: `La base de données alimentaire locale permet d'avoir des valeurs de glucides précises et personnalisées.
 
 Une base de plus de 500 aliments courants est déjà intégrée dans l'application au premier lancement.
 
-Format du fichier Excel
+Éditeur de base de données
+Accessible depuis le menu > Base alimentaire. Vous pouvez :
+- Consulter tous les aliments avec navigation alphabétique et recherche
+- Créer de nouveaux aliments manuellement (nom + glucides/100g)
+- Modifier les valeurs d'un aliment existant
+- Supprimer des aliments
+
+Créer un aliment à la volée
+Depuis le sélecteur de BDD (icône loupe sur une carte d'aliment), un bouton "Créer un aliment" permet d'ajouter un nouvel aliment directement pendant l'analyse, sans quitter la session.
+
+Format du fichier Excel pour import
 Le fichier doit contenir deux colonnes :
 - Aliment : nom de l'aliment
 - Glucides % (en g/100g) : teneur en glucides pour 100g
@@ -115,15 +137,32 @@ Menu > Importer BDD > sélectionnez votre fichier .xlsx. Les aliments déjà pr�
 
 Priorité des données
 Lors de l'analyse, les valeurs sont utilisées dans cet ordre :
-1. Base de données locale (votre fichier Excel)
+1. Base de données locale (votre fichier Excel + aliments créés manuellement)
 2. OpenFoodFacts (recherche en ligne)
 3. Estimation de l'IA (en dernier recours)`,
+  },
+  {
+    id: 'image-cache',
+    title: 'Cache de reconnaissance',
+    iconName: 'search',
+    keywords: 'cache reconnaissance plat similaire réutiliser image photo hash',
+    content: `GlucIA mémorise les plats analysés et peut reconnaître un plat similaire lors d'une prochaine session.
+
+Comment ça marche
+Quand vous terminez une session repas ("Fin de session repas"), les résultats validés sont sauvegardés dans un cache local associé à l'image.
+
+Lors d'une nouvelle analyse, si GlucIA détecte une image similaire à un plat déjà analysé, un panneau "Plat similaire reconnu" apparaît avec :
+- La date de l'analyse précédente
+- La liste des aliments et glucides associés
+- Deux boutons : "Réutiliser" (pas d'appel IA, instantané) ou "Nouvelle analyse" (relance l'IA)
+
+Astuce : Le cache utilise vos valeurs corrigées (pas les estimations brutes de l'IA). Plus vous corrigez, plus le cache sera précis. Le cache n'est alimenté qu'après validation de la session, pas pendant l'analyse.`,
   },
   {
     id: 'llm-config',
     title: 'Configuration du LLM',
     iconName: 'settings',
-    keywords: 'configuration LLM IA clé API gemini claude chatgpt openai modèle fournisseur',
+    keywords: 'configuration LLM IA clé API gemini claude chatgpt openai perplexity modèle fournisseur streaming',
     content: `GlucIA supporte plusieurs fournisseurs d'intelligence artificielle :
 
 Fournisseurs disponibles
@@ -131,6 +170,8 @@ Fournisseurs disponibles
 - Claude (Anthropic) : meilleure qualité, payant
 - ChatGPT (OpenAI) : GPT-4o avec vision, payant
 - Perplexity : recherche augmentée (pas d'analyse d'image)
+
+Tous les fournisseurs utilisent le streaming pour afficher les résultats en temps réel pendant l'analyse.
 
 Clés API
 Chaque fournisseur conserve sa propre clé API. Quand vous changez de fournisseur, votre clé précédente est sauvegardée et sera restaurée si vous revenez à ce fournisseur.
@@ -172,13 +213,13 @@ Astuce : Exportez régulièrement vos données pour créer des sauvegardes. Les 
     iconName: 'help',
     keywords: 'question fréquente faq problème pourquoi comment',
     content: `Q : Pourquoi l'estimation des glucides est-elle différente de la réalité ?
-R : L'IA estime le poids visuellement, ce qui peut être imprécis. Importez votre base de données alimentaire pour que les glucides/100g soient exacts, et corrigez le poids manuellement si nécessaire.
+R : L'IA estime le poids visuellement, ce qui peut être imprécis. Importez votre base de données alimentaire pour que les glucides/100g soient exacts, et corrigez le poids manuellement si nécessaire. Vos corrections sont mémorisées et appliquées automatiquement aux prochaines analyses.
 
 Q : L'analyse échoue systématiquement, que faire ?
 R : Vérifiez votre connexion internet et votre clé API (Configuration LLM > Tester la connexion). Essayez un autre fournisseur ou modèle.
 
 Q : Puis-je utiliser l'app sans connexion internet ?
-R : La caméra et l'interface fonctionnent hors ligne grâce au mode PWA. Cependant, l'analyse par IA nécessite une connexion.
+R : La caméra et l'interface fonctionnent hors ligne grâce au mode PWA. Cependant, l'analyse par IA nécessite une connexion. Le cache de reconnaissance permet de réutiliser des résultats précédents sans connexion.
 
 Q : Comment mesurer la longueur de mon index ?
 R : Mesurez du bout de l'index jusqu'à la première articulation avec une règle. Typiquement entre 65 et 85 mm.
@@ -187,7 +228,13 @@ Q : Mes données sont-elles envoyées sur un serveur ?
 R : Les données sont stockées localement sur votre appareil. Seules les photos sont envoyées au fournisseur d'IA pour l'analyse, puis supprimées de leurs serveurs.
 
 Q : Comment installer l'app sur mon téléphone ?
-R : Ouvrez l'URL dans Chrome sur Android, puis appuyez sur le menu > "Ajouter à l'écran d'accueil". L'app fonctionnera comme une application native.`,
+R : Ouvrez l'URL dans Chrome sur Android, puis appuyez sur le menu > "Ajouter à l'écran d'accueil". L'app fonctionnera comme une application native.
+
+Q : Pourquoi l'app me propose "Plat similaire reconnu" ?
+R : GlucIA a détecté que votre photo ressemble à un plat que vous avez déjà analysé. Vous pouvez réutiliser les résultats précédents (instantané, sans appel IA) ou lancer une nouvelle analyse.
+
+Q : Comment fonctionne l'apprentissage des corrections ?
+R : Quand vous corrigez le poids ou les glucides d'un aliment, GlucIA mémorise le ratio de correction. Lors des prochaines analyses du même aliment, ce ratio est appliqué automatiquement pour des estimations plus précises.`,
   },
   {
     id: 'troubleshooting',
@@ -203,16 +250,18 @@ Erreur 'JSON incomplet' ou 'Timeout'
 - Le LLM a mis trop de temps à répondre. Relancez l'analyse.
 - Essayez un modèle plus rapide (ex: Gemini Flash au lieu de Pro)
 - Vérifiez votre connexion internet
+- Le streaming permet de détecter les réponses plus rapidement
 
 L'app tourne en boucle / le spinner ne s'arrête pas
-- Un timeout de 30 secondes est en place. Attendez qu'il se déclenche.
+- Un timeout de 60 secondes est en place pour le streaming. Attendez qu'il se déclenche.
 - Si le problème persiste, fermez l'app et rouvrez-la.
 
 Les glucides estimés sont très différents de la réalité
 - Importez votre base de données alimentaire (.xlsx) pour des valeurs précises
 - Ajoutez toujours un contexte textuel pour aider l'IA
-- Corrigez le poids et les glucides manuellement
+- Corrigez le poids et les glucides manuellement — vos corrections seront mémorisées
 - Choisissez l'aliment directement depuis la BDD via l'icône loupe
+- Si la confiance est inférieure à 90%, des suggestions de la BDD sont affichées automatiquement
 
 L'import Excel ne fonctionne pas
 - Vérifiez que votre fichier est au format .xlsx
@@ -223,7 +272,7 @@ L'import Excel ne fonctionne pas
     id: 'best-practices',
     title: 'Bonnes pratiques',
     iconName: 'lightbulb',
-    keywords: 'conseil astuce bonne pratique meilleur précis photo lumière angle',
+    keywords: 'conseil astuce bonne pratique meilleur précis photo lumière angle multi',
     content: `Pour de meilleures estimations :
 
 Éclairage
@@ -232,17 +281,20 @@ Prenez vos photos avec un bon éclairage naturel. Évitez les ombres fortes et l
 Position du doigt
 Placez votre index à côté de l'aliment, à la même distance de l'objectif. Le doigt doit être bien visible et net.
 
-Angle de vue
-Photographiez le plat du dessus (vue plongeante) pour une meilleure estimation des volumes.
+Multi-angle
+Utilisez le bouton "2ème angle" pour prendre une seconde photo sous un angle différent. L'IA combine les deux perspectives pour mieux estimer les volumes. Vous pouvez aussi utiliser le mode vidéo 5s.
 
 Contexte textuel
-Ajoutez toujours un descriptif : "2 biscuits nutella", "150g de riz basmati cuit", "1 pomme moyenne". Plus vous êtes précis, meilleure sera l'analyse.
+Ajoutez toujours un descriptif : "2 biscuits nutella", "150g de riz basmati cuit", "1 pomme moyenne". Plus vous êtes précis, meilleure sera l'analyse. La recherche dans la BDD commence dès que vous tapez.
 
 Base de données
-Importez et enrichissez votre base de données alimentaire avec vos aliments courants. Les valeurs de la BDD locale sont toujours prioritaires.
+Importez et enrichissez votre base de données alimentaire avec vos aliments courants. Les valeurs de la BDD locale sont toujours prioritaires. Utilisez l'éditeur (menu > Base alimentaire) pour ajouter, modifier ou supprimer des aliments.
+
+Corrections
+Corrigez systématiquement les estimations de l'IA quand elles sont incorrectes. GlucIA apprend de vos corrections et les appliquera automatiquement la prochaine fois.
 
 Vérification systématique
-Vérifiez et corrigez les estimations de l'IA, surtout pour les aliments riches en glucides. Utilisez le sélecteur de BDD pour les aliments connus.`,
+Vérifiez les estimations, surtout pour les aliments riches en glucides. Utilisez le sélecteur de BDD pour les aliments connus. Si la confiance est basse, les suggestions automatiques vous aident à corriger rapidement.`,
   },
 ];
 

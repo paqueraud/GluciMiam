@@ -276,6 +276,24 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', maxWidth: 250, marginTop: 8 }}>
               Prenez votre plat en photo pour compter les glucides
             </p>
+
+            <div style={{
+              marginTop: 16,
+              padding: '10px 16px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(251,191,36,0.1)',
+              border: '1px solid var(--warning)',
+              fontSize: 11,
+              color: 'var(--warning)',
+              lineHeight: 1.5,
+              maxWidth: 320,
+              textAlign: 'left',
+            }}>
+              <strong>Avertissement :</strong> GlucIA est un outil d'aide au comptage des glucides.
+              Les estimations fournies par l'IA sont indicatives et ne remplacent pas l'avis
+              d'un professionnel de santé. Vérifiez toujours les valeurs avant d'ajuster votre
+              traitement insulinique.
+            </div>
           </motion.div>
         )}
 
